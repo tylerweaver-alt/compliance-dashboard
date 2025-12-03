@@ -48,15 +48,16 @@ export async function GET(req: NextRequest) {
     }
 
     // 1. Call Outcome Breakdown
+    // Note: Using cad_is_transport and master_incident_cancel_reason columns instead of disposition
     const outcomeSql = `
       SELECT
         COUNT(*) as total_calls,
         COUNT(*) FILTER (WHERE REPLACE(priority, '0', '') IN ('1', '2', '3') AND arrived_at_scene_time IS NOT NULL) as priority_calls,
         COUNT(*) FILTER (WHERE is_excluded = true) as excluded_calls,
-        COUNT(*) FILTER (WHERE disposition ILIKE '%transport%' OR disposition ILIKE '%hosp%') as transports,
-        COUNT(*) FILTER (WHERE disposition ILIKE '%refus%' OR disposition ILIKE '%rma%') as refusals,
-        COUNT(*) FILTER (WHERE disposition ILIKE '%cancel%') as cancelled,
-        COUNT(*) FILTER (WHERE disposition ILIKE '%no patient%' OR disposition ILIKE '%gone on arrival%') as no_patient
+        COUNT(*) FILTER (WHERE LOWER(cad_is_transport) = 'yes' OR LOWER(cad_is_transport) = 'true') as transports,
+        COUNT(*) FILTER (WHERE LOWER(cad_is_transport) = 'no' OR LOWER(cad_is_transport) = 'false') as refusals,
+        COUNT(*) FILTER (WHERE master_incident_cancel_reason IS NOT NULL AND master_incident_cancel_reason != '') as cancelled,
+        COUNT(*) FILTER (WHERE destination_description IS NULL OR destination_description = '') as no_patient
       FROM calls
       WHERE parish_id = $1 ${dateFilter}
     `;
@@ -92,15 +93,16 @@ export async function GET(req: NextRequest) {
     const timeStats = timeResult.rows[0];
 
     // 3. Hospital Flow (top destinations)
+    // Note: Using destination_description column instead of destination_name
     const hospitalSql = `
       SELECT
-        COALESCE(destination_name, 'Unknown') as hospital,
+        COALESCE(destination_description, 'Unknown') as hospital,
         COUNT(*) as count
       FROM calls
       WHERE parish_id = $1 ${dateFilter}
-        AND destination_name IS NOT NULL
-        AND destination_name != ''
-      GROUP BY destination_name
+        AND destination_description IS NOT NULL
+        AND destination_description != ''
+      GROUP BY destination_description
       ORDER BY count DESC
       LIMIT 10
     `;
