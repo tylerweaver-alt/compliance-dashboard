@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
 
 :root {
   --background: #ffffff;
@@ -23,4 +24,377 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  overflow: hidden;
+}
+
+/* Login Page Styles */
+.login-page {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #e8ecf0;
+  overflow: hidden;
+}
+
+.login-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  max-width: 320px;
+  width: 100%;
+  padding: 1rem 1.5rem 1.25rem;
+  max-height: 90vh;
+  overflow: hidden;
+}
+
+.login-header {
+  text-align: center;
+  margin-bottom: 1.25rem;
+}
+
+.login-logo {
+  margin-bottom: 0rem;
+}
+
+.login-logo img {
+  height: 240px;
+  width: auto;
+  margin: 0 auto;
+  display: block;
+}
+
+.login-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.login-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.login-field label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+}
+
+.login-field input {
+  padding: 0.5rem 0.875rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  transition: border-color 0.2s;
+}
+
+.login-field input:focus {
+  outline: none;
+  border-color: #225e39;
+}
+
+.login-error {
+  color: #dc2626;
+  font-size: 0.875rem;
+  padding: 0.5rem;
+  background: #fee2e2;
+  border-radius: 6px;
+  text-align: center;
+}
+
+.login-submit {
+  background: #225e39;
+  color: white;
+  border: none;
+  padding: 0.5rem;
+  border-radius: 6px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.login-submit:hover {
+  background: #1a4a2d;
+}
+
+.login-sso {
+  background: #7bc24a;
+  color: white;
+  border: none;
+  padding: 0.5rem;
+  border-radius: 6px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+  width: 100%;
+}
+
+.login-sso:hover {
+  background: #6ba93d;
+}
+
+.login-footer {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e5e7eb;
+  text-align: center;
+}
+
+.login-footer p {
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin: 0;
+}
+
+/* Print Styles for Compliance Report */
+@page {
+  size: landscape;
+  margin: 0.5in;
+}
+
+@media print {
+  * {
+    background-color: transparent !important;
+  }
+
+  html, body {
+    background: white !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    width: 100% !important;
+    height: auto !important;
+  }
+
+  /* Keep specific backgrounds that need color */
+  .bg-\[rgb\(250\,204\,21\)\] {
+    background-color: rgb(250, 204, 21) !important;
+  }
+
+  /* Ensure proper page breaks */
+  .page-break {
+    page-break-before: always;
+  }
+
+  /* Page break after first section (summary) */
+  .print\:break-after-page {
+    page-break-after: always;
+  }
+
+  /* Avoid breaking inside cards */
+  .bg-white.rounded-xl {
+    page-break-inside: avoid;
+  }
+
+  /* Table header repeats on each page */
+  thead {
+    display: table-header-group;
+  }
+
+  /* Avoid breaking table rows */
+  tr {
+    page-break-inside: avoid;
+  }
+
+  /* Force text colors to print */
+  .text-3xl {
+    color: #1e293b !important;
+  }
+
+  /* Calls table - smaller font for print */
+  .calls-table {
+    font-size: 9px !important;
+  }
+
+  .calls-table th,
+  .calls-table td {
+    padding: 4px 6px !important;
+    white-space: nowrap !important;
+  }
+}
+
+/* Heatmap Controls */
+.map-controls {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.map-btn {
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid #ccc;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 13px;
+  transition: all 0.15s ease;
+  background: #fff;
+  color: #666;
+}
+
+.map-btn:hover {
+  background: #f5f5f5;
+  border-color: #999;
+}
+
+.map-btn.active {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+
+.map-btn.toggle {
+  background: #f0f0f0;
+  color: #333;
+}
+
+.map-btn.toggle.active {
+  background: #10b981;
+  color: #fff;
+  border-color: #10b981;
+}
+
+/* Forecast Dropdown */
+.forecast-dropdown {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  font-size: 13px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.forecast-dropdown:focus {
+  outline: none;
+  border-color: #2563eb;
+}
+
+/* Optimal Post Markers */
+.optimal-post-marker {
+  background: transparent;
+  border: none;
+}
+
+.optimal-post-marker .post-marker {
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: bold;
+  font-size: 14px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  border: 2px solid white;
+}
+
+/* Post Summary Panel */
+.post-summary-panel {
+  background: #1e293b;
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 8px;
+  display: flex;
+  gap: 24px;
+  font-size: 13px;
+}
+
+.post-summary-panel .stat {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.post-summary-panel .stat strong {
+  font-weight: 600;
+}
+
+.post-summary-panel .risk-high {
+  color: #ef4444;
+}
+
+.post-summary-panel .risk-low {
+  color: #22c55e;
+}
+
+/* Heatmap Tile on Dashboard */
+.heatmap-tile {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.heatmap-tile:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
+  border-color: #004437;
+}
+
+.heatmap-tile .icon {
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #1e293b;
+}
+
+.heatmap-tile .icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.heatmap-tile .content {
+  flex: 1;
+}
+
+.heatmap-tile .title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.heatmap-tile .description {
+  font-size: 14px;
+  color: #64748b;
+}
+
+.heatmap-tile .arrow {
+  width: 24px;
+  height: 24px;
+  color: #94a3b8;
+  transition: transform 0.15s ease;
+}
+
+.heatmap-tile:hover .arrow {
+  transform: translateX(4px);
+  color: #004437;
 }
