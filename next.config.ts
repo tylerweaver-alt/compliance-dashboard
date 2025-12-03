@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
     // Pre-existing TS errors in admin routes - ignore during dev
     ignoreBuildErrors: true,
   },
+  output: "standalone",
 };
 
 export default nextConfig;
