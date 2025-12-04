@@ -5,6 +5,7 @@ import { useSession, signIn, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import ParishSettingsManager from '../components/ParishSettingsManager';
 import AdminSettingsModal from '../components/AdminSettingsModal';
+import AcadianIntelligenceButton from '../components/AcadianIntelligenceButton';
 
 const ADMIN_ROLES = ['OM', 'Director', 'VP', 'Admin'];
 const HEATMAP_SETTINGS_ROLES = ['OS', 'OM', 'Director', 'VP', 'Admin'];
@@ -787,6 +788,8 @@ function Dashboard({ user, onLogout }) {
                 Welcome, <span className="font-medium text-slate-700">{user?.displayName || 'User'}</span>
               </span>
             </div>
+            <div className="h-16 w-px bg-slate-300" /> {/* Vertical divider */}
+            <AcadianIntelligenceButton />
           </div>
 
           {/* User Menu Dropdown */}
