@@ -11,6 +11,8 @@ const pool = new Pool({
   },
 });
 
+export { pool };
+
 // Simple helper
 export async function query<T extends QueryResultRow = QueryResultRow>(text: string, params?: any[]): Promise<{ rows: T[] }> {
   const client = await pool.connect();

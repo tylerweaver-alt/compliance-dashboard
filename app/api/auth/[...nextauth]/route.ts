@@ -59,22 +59,36 @@ async function getUserFromDb(email: string): Promise<DbUser | null> {
 
 // ============================================================================
 // DEV-ONLY FAILSAFE
-// When both conditions are true:
-//   1. NODE_ENV === 'development' OR DEV_BYPASS_AUTH === '1'
-//   2. Email is tyler.weaver@acadian.com
-// 
-// This allows login even if Neon is down or user row is misconfigured.
-// REMOVE or disable this once the project goes to production.
+// Only active when BOTH:
+//   1. NODE_ENV === 'development'
+//   2. LOCAL_DEV_BYPASS === '1'
+// This should never be enabled in staging/production. A runtime assertion below
+// will throw if the flag is present in non-local environments.
 // ============================================================================
 
-function isDevBypassEnabled(): boolean {
-  return (
-    process.env.NODE_ENV === 'development' ||
-    process.env.DEV_BYPASS_AUTH === '1'
-  );
+const DEV_BYPASS_EMAIL = 'tyler.weaver@acadian.com';
+const LOCAL_DEV_BYPASS_ENABLED = process.env.LOCAL_DEV_BYPASS === '1';
+
+function assertSafeDevBypass() {
+  if (!LOCAL_DEV_BYPASS_ENABLED) return;
+
+  const nodeEnv = process.env.NODE_ENV;
+  const vercelEnv = process.env.VERCEL_ENV;
+
+  // Block the flag in non-development environments
+  if (nodeEnv && nodeEnv !== 'development') {
+    throw new Error('LOCAL_DEV_BYPASS=1 is not allowed when NODE_ENV is not development');
+  }
+  if (vercelEnv && vercelEnv !== 'development' && vercelEnv !== 'dev' && vercelEnv !== 'local') {
+    throw new Error(`LOCAL_DEV_BYPASS=1 is not allowed when VERCEL_ENV=${vercelEnv}`);
+  }
 }
 
-const DEV_BYPASS_EMAIL = 'tyler.weaver@acadian.com';
+assertSafeDevBypass();
+
+function isDevBypassEnabled(): boolean {
+  return process.env.NODE_ENV === 'development' && LOCAL_DEV_BYPASS_ENABLED;
+}
 
 function getDevBypassUser(): DbUser {
   return {
@@ -268,4 +282,3 @@ export const authOptions: NextAuthOptions = {
 
 const handler = NextAuth(authOptions);
 export { handler as GET, handler as POST };
-

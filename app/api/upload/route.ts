@@ -1,14 +1,14 @@
-import { Pool } from "pg";
-import * as XLSX from "xlsx";
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { parse } from "csv-parse/sync";
+import { authOptions } from "../auth/[...nextauth]/route";
+import { pool } from "@/lib/db";
 
-export const runtime = "nodejs"; // use Node runtime (needed for pg, xlsx)
+export const runtime = "nodejs";
 
-// ---------- Postgres / Neon pool ----------
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
-
-// ---------- Helpers for parsing ----------
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10MB
+const ALLOWED_MIME_TYPES = ["text/csv", "application/vnd.ms-excel"];
+const ADMIN_ROLES = ["OM", "Director", "VP", "Admin"];
 
 // incident_key: "09012025-1377" -> { callDate: "2025-09-01", callSequence: "1377" }
 function parseIncidentParts(incidentKey: string): { callDate: string | null; callSequence: string | null } {
@@ -26,16 +26,10 @@ function parseIncidentParts(incidentKey: string): { callDate: string | null; cal
   const month = parseInt(mm, 10);
   const day = parseInt(dd, 10);
 
-  if (
-    Number.isNaN(month) ||
-    Number.isNaN(day) ||
-    month < 1 || month > 12 ||
-    day < 1 || day > 31
-  ) {
+  if (Number.isNaN(month) || Number.isNaN(day) || month < 1 || month > 12 || day < 1 || day > 31) {
     return { callDate: null, callSequence: seqPart || null };
   }
 
-  // 🔐 DB-safe ISO date
   return {
     callDate: `${yyyy}-${mm}-${dd}`,
     callSequence: seqPart || null,
@@ -51,7 +45,7 @@ function parseClockString(str: string): string | null {
   if (parts.some((n) => Number.isNaN(n))) return null;
 
   if (parts.length === 3) {
-    let [h, m, s] = parts;
+    const [h, m, s] = parts;
     if (h < 0 || h > 23 || m < 0 || m > 59 || s < 0 || s > 59) return null;
     const hh = h.toString().padStart(2, "0");
     const mm = m.toString().padStart(2, "0");
@@ -60,7 +54,7 @@ function parseClockString(str: string): string | null {
   }
 
   if (parts.length === 2) {
-    let [m, s] = parts;
+    const [m, s] = parts;
     if (m < 0 || m > 59 || s < 0 || s > 59) return null;
     const mm = m.toString().padStart(2, "0");
     const ss = s.toString().padStart(2, "0");
@@ -77,17 +71,6 @@ function parseClockString(str: string): string | null {
   return null;
 }
 
-// "0:29:55" -> 1795 seconds, etc.
-function parseDurationToSeconds(str: string): number | null {
-  const normalized = parseClockString(str);
-  if (!normalized) return null;
-
-  const [h, m, s] = normalized.split(":").map((n) => parseInt(n, 10));
-  if ([h, m, s].some((n) => Number.isNaN(n))) return null;
-
-  return h * 3600 + m * 60 + s;
-}
-
 // Build timestamp "YYYY-MM-DDTHH:MM:SS" from ISO date + time string
 function buildTimestamp(dateIso: string | null, timeStr: string | null): string | null {
   if (!dateIso || !timeStr) return null;
@@ -98,41 +81,34 @@ function buildTimestamp(dateIso: string | null, timeStr: string | null): string 
 
 interface ParsedCallRow {
   incident_number: string;
-  call_date: string;             // ISO "YYYY-MM-DD" for DB
+  call_date: string;
   origin_address: string | null;
   origin_city: string | null;
-  start_time: string | null;     // "YYYY-MM-DDTHH:MM:SS"
-  at_scene_time: string | null;  // same
+  start_time: string | null;
+  at_scene_time: string | null;
   response_seconds: number | null;
 }
 
-// Use XLSX to parse your Evangeline/Ville Platte sheets
-function parseCallsFromBuffer(buffer: Buffer): ParsedCallRow[] {
-  const workbook = XLSX.read(buffer, { type: "buffer" });
-  const sheetName = workbook.SheetNames[0];
-  const sheet = workbook.Sheets[sheetName];
-
-  const rows: any[][] = XLSX.utils.sheet_to_json(sheet, {
-    header: 1,
-    defval: "",
-    raw: false, // 🔴 give us formatted strings (like the CSV)
+// Parse CSV rows matching previous XLSX structure
+function parseCallsFromCsv(buffer: Buffer): ParsedCallRow[] {
+  const rows: any[][] = parse(buffer, {
+    skip_empty_lines: true,
+    trim: true,
   }) as any[][];
 
   const parsed: ParsedCallRow[] = [];
 
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i];
+  for (const row of rows) {
     if (!row) continue;
 
     // Columns:
-    // 0: "Evangeline 20" or "Ville Platte 8" (label - ignore for parsing, only first occurrence matters)
+    // 0: "Evangeline 20" or "Ville Platte 8" (label - ignore)
     // 1: "09012025-1377"   incident key
     // 2: "1428 Walnut St"  address
-    // 3: "Pine Prairie"    city / "Parish"
+    // 3: "Pine Prairie"    city
     // 4: "18:12:57"        start
     // 5: "18:31:15"        on scene
     // 6: "0:00:28"         response
-    const label = String(row[0] ?? "").trim();
     const incidentKey = String(row[1] ?? "").trim();
     const addr = String(row[2] ?? "").trim();
     const city = String(row[3] ?? "").trim();
@@ -140,13 +116,10 @@ function parseCallsFromBuffer(buffer: Buffer): ParsedCallRow[] {
     const sceneStr = String(row[5] ?? "").trim();
     const responseStr = String(row[6] ?? "").trim();
 
-    // Skip header rows (where column 1 contains "Date/Response" or similar)
     if (!incidentKey || incidentKey.toLowerCase().includes("date/response")) {
       continue;
     }
 
-    // Skip rows where the incident key is actually a label/header being repeated
-    // (Some exports repeat the label in column 0 for every row, we only care about incident data)
     if (!incidentKey.match(/^\d{8}-\d+$/)) {
       continue;
     }
@@ -159,10 +132,13 @@ function parseCallsFromBuffer(buffer: Buffer): ParsedCallRow[] {
 
     let responseSeconds: number | null = null;
     if (responseStr) {
-      responseSeconds = parseDurationToSeconds(responseStr);
+      const normalized = parseClockString(responseStr);
+      if (normalized) {
+        const [h, m, s] = normalized.split(":").map((n) => parseInt(n, 10));
+        responseSeconds = h * 3600 + m * 60 + s;
+      }
     }
 
-    // Fallback: derive responseSeconds from start/scene if needed
     if ((responseSeconds === null || responseSeconds === 0) && startTs && sceneTs) {
       const [, startTimePart] = startTs.split("T");
       const [, sceneTimePart] = sceneTs.split("T");
@@ -192,62 +168,76 @@ function parseCallsFromBuffer(buffer: Buffer): ParsedCallRow[] {
   return parsed;
 }
 
-// ---------- Main HTTP handler ----------
-export async function POST(req: Request) {
+function requireAdmin(session: any): { ok: true; user: any } | { ok: false; status: number; error: string } {
+  if (!session || !session.user) {
+    return { ok: false, status: 401, error: "Unauthorized" };
+  }
+
+  const user = session.user as any;
+  const role = user.role as string | undefined;
+  const isAdmin = user.is_admin === true || (role && ADMIN_ROLES.includes(role));
+
+  if (!isAdmin) {
+    return { ok: false, status: 403, error: "Forbidden" };
+  }
+
+  return { ok: true, user };
+}
+
+export async function POST(req: NextRequest) {
+  const contentType = req.headers.get("content-type") || "";
+  if (!contentType.toLowerCase().includes("multipart/form-data")) {
+    return NextResponse.json({ error: "Content-Type must be multipart/form-data" }, { status: 415 });
+  }
+
+  const session = await getServerSession(authOptions);
+  const adminCheck = requireAdmin(session);
+  if (!adminCheck.ok) {
+    return NextResponse.json({ error: adminCheck.error }, { status: adminCheck.status });
+  }
+
+  const formData = await req.formData();
+  const file = formData.get("file") as File | null;
+  const parishIdStr = formData.get("parish_id") as string | null;
+  const dataMonthStr = formData.get("data_month") as string | null;
+  const dataYearStr = formData.get("data_year") as string | null;
+
+  if (!file) {
+    return NextResponse.json({ error: "No file found in 'file' field" }, { status: 400 });
+  }
+
+  const parishId = parishIdStr ? parseInt(parishIdStr, 10) : NaN;
+  if (Number.isNaN(parishId)) {
+    return NextResponse.json({ error: "Valid parish_id is required" }, { status: 400 });
+  }
+
+  if (file.size > MAX_UPLOAD_BYTES) {
+    return NextResponse.json({ error: "File too large", max_bytes: MAX_UPLOAD_BYTES }, { status: 413 });
+  }
+
+  const filename = file.name || "upload.csv";
+  const fileExt = filename.toLowerCase();
+  const isCsvMime = ALLOWED_MIME_TYPES.includes(file.type);
+  const isCsvExt = fileExt.endsWith(".csv");
+  if (!isCsvMime && !isCsvExt) {
+    return NextResponse.json({ error: "Only CSV uploads are allowed" }, { status: 415 });
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const calls = parseCallsFromCsv(buffer);
+  if (calls.length === 0) {
+    return NextResponse.json({ error: "No valid call rows found in CSV" }, { status: 400 });
+  }
+
+  const dataMonth = dataMonthStr ? parseInt(dataMonthStr, 10) : null;
+  const dataYear = dataYearStr ? parseInt(dataYearStr, 10) : null;
+
   const client = await pool.connect();
   let uploadId: string | null = null;
 
   try {
-    const formData = await req.formData();
-
-    const file = formData.get("file") as File | null;
-    const parishIdStr = formData.get("parish_id") as string | null;
-    const userIdStr = formData.get("user_id") as string | null; // UUID string
-    const username = formData.get("username") as string | null;
-    const dataMonthStr = formData.get("data_month") as string | null;
-    const dataYearStr = formData.get("data_year") as string | null;
-    const sourceLabel = formData.get("source_label") as string | null; // e.g. "Evangeline 20"
-
-    if (!file) {
-      return new Response(
-        JSON.stringify({ error: "No file found in 'file' field" }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    if (!parishIdStr || !userIdStr || !username) {
-      return new Response(
-        JSON.stringify({
-          error: "parish_id, user_id, and username are required",
-        }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    const parishId = parseInt(parishIdStr, 10);
-    const userId = userIdStr;
-    const dataMonth = dataMonthStr ? parseInt(dataMonthStr, 10) : null;
-    const dataYear = dataYearStr ? parseInt(dataYearStr, 10) : null;
-
-    if (Number.isNaN(parishId)) {
-      return new Response(
-        JSON.stringify({ error: "Invalid parish_id" }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    const filename = file.name || "upload";
-    const mimeType = file.type || null;
-    const fileSize = buffer.length;
-
-    const calls = parseCallsFromBuffer(buffer);
-    console.log("Parsed calls count:", calls.length);
-
     await client.query("BEGIN");
 
-    // Store the raw file and metadata
     const uploadRes = await client.query(
       `
       insert into parish_uploads (
@@ -262,17 +252,17 @@ export async function POST(req: Request) {
         data_month,
         data_year
       )
-      values ($1,$2,$3,$4,$5,$6,$7,'pending',$8,$9)
+      values ($1,$2,$3,$4,$5,$6,$7,'processed',$8,$9)
       returning id;
       `,
       [
         parishId,
         filename,
-        fileSize,
-        mimeType,
-        buffer,
-        userId,
-        username,
+        buffer.length,
+        file.type || null,
+        null, // do not store raw blob
+        adminCheck.user.id ?? null,
+        adminCheck.user.email ?? adminCheck.user.name ?? null,
         dataMonth,
         dataYear,
       ]
@@ -281,10 +271,8 @@ export async function POST(req: Request) {
     uploadId = uploadRes.rows[0].id as string;
 
     let rowsInserted = 0;
-
     for (const c of calls) {
       const { callSequence } = parseIncidentParts(c.incident_number);
-      
       await client.query(
         `
         insert into calls (
@@ -305,8 +293,8 @@ export async function POST(req: Request) {
         `,
         [
           parishId,
-          c.incident_number,        // legacy / original
-          c.incident_number,        // incident_key
+          c.incident_number,
+          c.incident_number,
           c.call_date,
           callSequence,
           c.origin_address,
@@ -315,7 +303,7 @@ export async function POST(req: Request) {
           c.at_scene_time,
           c.response_seconds,
           uploadId,
-          userId,
+          adminCheck.user.id ?? null,
         ]
       );
       rowsInserted++;
@@ -324,8 +312,7 @@ export async function POST(req: Request) {
     await client.query(
       `
       update parish_uploads
-      set status = 'processed',
-          rows_imported = $1
+      set rows_imported = $1
       where id = $2;
       `,
       [rowsInserted, uploadId]
@@ -333,45 +320,26 @@ export async function POST(req: Request) {
 
     await client.query("COMMIT");
 
-    return new Response(
-      JSON.stringify({
+    return NextResponse.json(
+      {
         ok: true,
-        message: "Upload processed",
         uploadId,
         rowsInserted,
-        rowsParsedFromXlsx: calls.length,
-        sampleParsedRows: calls.slice(0, 5),
-      }),
-      { status: 200, headers: { "Content-Type": "application/json" } }
+        rowsParsed: calls.length,
+        filename,
+      },
+      { status: 201 }
     );
   } catch (err: any) {
-    console.error("Upload error:", err);
-
-    if (uploadId) {
-      try {
-        await client.query(
-          `
-          update parish_uploads
-          set status = 'failed',
-              error_message = $1
-          where id = $2;
-          `,
-          [String(err?.message || err), uploadId]
-        );
-      } catch (e) {
-        console.error("Failed to update parish_uploads status:", e);
-      }
-    }
-
     await client.query("ROLLBACK");
-
-    return new Response(
-      JSON.stringify({
+    console.error("Upload error:", err);
+    return NextResponse.json(
+      {
         error: "Upload failed",
-        details: String(err?.message || err),
+        details: err?.message ?? String(err),
         uploadId,
-      }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
+      },
+      { status: 500 }
     );
   } finally {
     client.release();

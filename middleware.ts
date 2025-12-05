@@ -25,16 +25,20 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  // Allow requests to:
-  // 1. All API routes (they handle their own auth if needed)
-  // 2. Static files and images
-  // 3. The login page itself (AcadianDashboard without session shows login)
-  if (
-    pathname.startsWith('/api/') ||
-    pathname.startsWith('/_next') ||
-    pathname.startsWith('/Images') ||
-    pathname.includes('.')
-  ) {
+  // Allow static assets through
+  if (pathname.startsWith('/_next') || pathname.startsWith('/Images') || pathname.includes('.')) {
+    return NextResponse.next();
+  }
+
+  // Default-protect all API routes except a narrow allowlist
+  const allowedApiPrefixes = ['/api/auth', '/api/health'];
+  const isApiRoute = pathname.startsWith('/api/');
+  const isAllowedApi = allowedApiPrefixes.some((prefix) => pathname.startsWith(prefix));
+
+  if (isApiRoute && !isAllowedApi) {
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     return NextResponse.next();
   }
 
@@ -55,4 +59,3 @@ export const config = {
     '/((?!_next/static|_next/image|favicon.ico).*)',
   ],
 };
-
