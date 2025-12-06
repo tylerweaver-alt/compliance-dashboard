@@ -1,4 +1,5 @@
 // app/api/calls/route.ts
+// Authenticated read API for call records with optional date filtering.
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { Pool } from 'pg';

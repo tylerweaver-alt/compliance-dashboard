@@ -1,3 +1,4 @@
+// Legacy script: moved here because it appears unused; kept for reference.
 require('dotenv').config({ path: '.env.local' });
 const { Pool } = require('pg');
 const pool = new Pool({
@@ -41,4 +42,3 @@ async function run() {
 }
 
 run();
-

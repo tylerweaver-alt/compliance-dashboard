@@ -1,3 +1,4 @@
+// CSV upload endpoint for call ingestion with auth, role checks, and size/type validation.
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { parse } from "csv-parse/sync";
@@ -168,6 +169,7 @@ function parseCallsFromCsv(buffer: Buffer): ParsedCallRow[] {
   return parsed;
 }
 
+// Require session with role-based access to upload.
 function requireAdmin(session: any): { ok: true; user: any } | { ok: false; status: number; error: string } {
   if (!session || !session.user) {
     return { ok: false, status: 401, error: "Unauthorized" };
@@ -184,6 +186,7 @@ function requireAdmin(session: any): { ok: true; user: any } | { ok: false; stat
   return { ok: true, user };
 }
 
+// Authenticated CSV ingest for call uploads; enforces role-based access, size limits, and CSV-only input.
 export async function POST(req: NextRequest) {
   const contentType = req.headers.get("content-type") || "";
   if (!contentType.toLowerCase().includes("multipart/form-data")) {

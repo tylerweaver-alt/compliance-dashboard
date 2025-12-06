@@ -1,3 +1,4 @@
+// Summary API for parish compliance stats; requires authenticated session.
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../auth/[...nextauth]/route';

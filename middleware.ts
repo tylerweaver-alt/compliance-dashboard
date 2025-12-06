@@ -1,15 +1,6 @@
 /**
- * NextAuth Middleware for Route Protection
- *
- * Protects dashboard routes - any attempt to access without a session
- * will redirect to the login page (which is also /AcadianDashboard,
- * but the page component handles showing login vs dashboard based on session).
- *
- * Protected routes:
- * - /AcadianDashboard/*
- * - /calls/*
- * - /parish/*
- * - /parish-report/*
+ * Middleware for session-aware routing and API protection.
+ * Guards all routes except static assets and the auth/health API allowlist.
  */
 
 import { NextResponse } from 'next/server';

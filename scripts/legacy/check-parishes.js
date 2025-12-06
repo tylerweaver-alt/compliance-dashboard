@@ -1,3 +1,4 @@
+// Legacy script: moved here because it appears unused; kept for reference.
 const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');
@@ -53,4 +54,3 @@ async function main() {
 }
 
 main();
-

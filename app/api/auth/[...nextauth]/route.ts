@@ -1,10 +1,6 @@
 /**
- * NextAuth Configuration for Acadian Compliance Dashboard
- * 
- * Features:
- * - Google OAuth provider (only @acadian.com emails)
- * - Neon Postgres integration for user lookup (role, regions)
- * - DEV-ONLY failsafe for tyler.weaver@acadian.com
+ * NextAuth configuration for the compliance dashboard.
+ * Handles Google auth, Neon user lookup, audit events, and guarded dev bypass.
  */
 
 import NextAuth, { NextAuthOptions, User } from 'next-auth';

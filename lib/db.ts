@@ -1,5 +1,6 @@
 import { Pool, QueryResultRow } from 'pg';
 
+// Centralized Neon pool for server-side queries.
 if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL is not set');
 }
@@ -13,7 +14,7 @@ const pool = new Pool({
 
 export { pool };
 
-// Simple helper
+// Simple helper for one-off parameterized queries.
 export async function query<T extends QueryResultRow = QueryResultRow>(text: string, params?: any[]): Promise<{ rows: T[] }> {
   const client = await pool.connect();
   try {
