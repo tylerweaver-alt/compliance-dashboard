@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Pool } from 'pg';
+import { query } from '@/lib/db';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '../../auth/[...nextauth]/route';
+import { recordManualExclusion } from '@/lib/exclusions';
 
 export const runtime = 'nodejs';
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-});
-
 export async function POST(req: NextRequest) {
-  const client = await pool.connect();
-
   try {
+    // Get session for audit logging
+    const session = await getServerSession(authOptions);
+    const sessionUser = session?.user as any;
+
     const body = await req.json();
     const { callId, is_excluded, exclusion_reason, is_confirmed } = body;
 
@@ -22,6 +22,28 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Handle manual exclusion with audit logging
+    if (is_excluded === true && exclusion_reason) {
+      await recordManualExclusion(
+        callId,
+        sessionUser?.id ?? null,
+        sessionUser?.email ?? null,
+        exclusion_reason
+      );
+
+      // Get updated call data
+      const { rows } = await query(
+        `SELECT id, is_excluded, exclusion_reason, is_confirmed FROM calls WHERE id = $1`,
+        [callId]
+      );
+
+      return NextResponse.json({
+        ok: true,
+        call: rows[0],
+      });
+    }
+
+    // Handle other updates (confirm, or exclusion without reason)
     const updates: string[] = [];
     const values: any[] = [];
     let paramIndex = 1;
@@ -50,16 +72,15 @@ export async function POST(req: NextRequest) {
 
     values.push(callId);
 
-    const sql = `
-      UPDATE calls 
-      SET ${updates.join(', ')}
-      WHERE id = $${paramIndex}
-      RETURNING id, is_excluded, exclusion_reason, is_confirmed
-    `;
+    const { rows } = await query(
+      `UPDATE calls
+       SET ${updates.join(', ')}
+       WHERE id = $${paramIndex}
+       RETURNING id, is_excluded, exclusion_reason, is_confirmed`,
+      values
+    );
 
-    const result = await client.query(sql, values);
-
-    if (result.rowCount === 0) {
+    if (rows.length === 0) {
       return NextResponse.json(
         { error: 'Call not found' },
         { status: 404 }
@@ -68,7 +89,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      call: result.rows[0],
+      call: rows[0],
     });
 
   } catch (err: any) {
@@ -77,8 +98,6 @@ export async function POST(req: NextRequest) {
       { error: 'Failed to update call', details: err.message },
       { status: 500 }
     );
-  } finally {
-    client.release();
   }
 }
 

@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Pool } from 'pg';
+import { query } from '@/lib/db';
+import {
+  computeComplianceStats,
+  computeResponseTimeDistribution,
+  computeDailyTrend,
+  computeHourlyVolume,
+} from '@/lib/stats';
 
 export const runtime = 'nodejs';
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-});
-
 export async function GET(req: NextRequest) {
-  const client = await pool.connect();
-
   try {
     const { searchParams } = new URL(req.url);
     const parishIdParam = searchParams.get('parishId');
@@ -27,7 +26,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Get parish info
-    const parishResult = await client.query(
+    const parishResult = await query(
       'SELECT id, name, region FROM parishes WHERE id = $1',
       [parishId]
     );
@@ -36,7 +35,8 @@ export async function GET(req: NextRequest) {
     }
     const parish = parishResult.rows[0];
 
-    // Build date filter
+    // Build filters
+    const parishFilter = `parish_id = $1`;
     const params: any[] = [parishId];
     let dateFilter = '';
     if (startDate && endDate) {
@@ -47,8 +47,15 @@ export async function GET(req: NextRequest) {
       params.push(startDate, endDate);
     }
 
+    // Compute enhanced metrics using helpers
+    const [compliance, responseTimeDistribution, dailyTrend, hourlyVolume] = await Promise.all([
+      computeComplianceStats(parishFilter, dateFilter, params),
+      computeResponseTimeDistribution(parishFilter, dateFilter, params),
+      computeDailyTrend(parishFilter, dateFilter, params),
+      computeHourlyVolume(parishFilter, dateFilter, params),
+    ]);
+
     // 1. Call Outcome Breakdown
-    // Note: Using cad_is_transport and master_incident_cancel_reason columns instead of disposition
     const outcomeSql = `
       SELECT
         COUNT(*) as total_calls,
@@ -61,39 +68,10 @@ export async function GET(req: NextRequest) {
       FROM calls
       WHERE parish_id = $1 ${dateFilter}
     `;
-    const outcomeResult = await client.query(outcomeSql, params);
+    const outcomeResult = await query(outcomeSql, params);
     const outcomes = outcomeResult.rows[0];
 
-    // 2. Time & Performance
-    const timeSql = `
-      SELECT
-        AVG(EXTRACT(EPOCH FROM (
-          TO_TIMESTAMP(arrived_at_scene_time, 'MM/DD/YY HH24:MI:SS') -
-          TO_TIMESTAMP(call_in_que_time, 'MM/DD/YY HH24:MI:SS')
-        )) / 60) as avg_response_minutes,
-        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY
-          EXTRACT(EPOCH FROM (
-            TO_TIMESTAMP(arrived_at_scene_time, 'MM/DD/YY HH24:MI:SS') -
-            TO_TIMESTAMP(call_in_que_time, 'MM/DD/YY HH24:MI:SS')
-          )) / 60
-        ) as median_response_minutes,
-        PERCENTILE_CONT(0.9) WITHIN GROUP (ORDER BY
-          EXTRACT(EPOCH FROM (
-            TO_TIMESTAMP(arrived_at_scene_time, 'MM/DD/YY HH24:MI:SS') -
-            TO_TIMESTAMP(call_in_que_time, 'MM/DD/YY HH24:MI:SS')
-          )) / 60
-        ) as p90_response_minutes
-      FROM calls
-      WHERE parish_id = $1 ${dateFilter}
-        AND arrived_at_scene_time IS NOT NULL
-        AND call_in_que_time IS NOT NULL
-        AND REPLACE(priority, '0', '') IN ('1', '2', '3')
-    `;
-    const timeResult = await client.query(timeSql, params);
-    const timeStats = timeResult.rows[0];
-
-    // 3. Hospital Flow (top destinations)
-    // Note: Using destination_description column instead of destination_name
+    // 2. Hospital Flow (top destinations)
     const hospitalSql = `
       SELECT
         COALESCE(destination_description, 'Unknown') as hospital,
@@ -106,9 +84,9 @@ export async function GET(req: NextRequest) {
       ORDER BY count DESC
       LIMIT 10
     `;
-    const hospitalResult = await client.query(hospitalSql, params);
+    const hospitalResult = await query(hospitalSql, params);
 
-    // 4. Exclusion Reasons
+    // 3. Exclusion Reasons
     const exclusionSql = `
       SELECT
         COALESCE(exclusion_reason, 'No reason specified') as reason,
@@ -120,14 +98,25 @@ export async function GET(req: NextRequest) {
       ORDER BY count DESC
       LIMIT 10
     `;
-    const exclusionResult = await client.query(exclusionSql, params);
+    const exclusionResult = await query(exclusionSql, params);
 
-    // 5. Zone Breakdown
+    // 4. Zone Breakdown with compliance
     const zoneSql = `
       SELECT
         COALESCE(response_area, 'Unassigned') as zone,
         COUNT(*) as total,
-        COUNT(*) FILTER (WHERE NOT COALESCE(is_excluded, false)) as active
+        COUNT(*) FILTER (WHERE NOT COALESCE(is_excluded, false)) as active,
+        COUNT(*) FILTER (
+          WHERE (is_excluded = false OR is_excluded IS NULL)
+          AND REPLACE(priority, '0', '') IN ('1', '2', '3')
+          AND compliance_time_minutes IS NOT NULL
+          AND compliance_time_minutes <= COALESCE(threshold_minutes, 12)
+        ) as compliant,
+        COUNT(*) FILTER (
+          WHERE (is_excluded = false OR is_excluded IS NULL)
+          AND REPLACE(priority, '0', '') IN ('1', '2', '3')
+          AND compliance_time_minutes IS NOT NULL
+        ) as evaluated
       FROM calls
       WHERE parish_id = $1 ${dateFilter}
         AND arrived_at_scene_time IS NOT NULL
@@ -135,16 +124,7 @@ export async function GET(req: NextRequest) {
       GROUP BY response_area
       ORDER BY total DESC
     `;
-    const zoneResult = await client.query(zoneSql, params);
-
-    // Format response times as MM:SS
-    const formatMinutes = (mins: number | null): string => {
-      if (mins === null || isNaN(mins)) return '--:--';
-      const totalSeconds = Math.round(mins * 60);
-      const m = Math.floor(totalSeconds / 60);
-      const s = totalSeconds % 60;
-      return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-    };
+    const zoneResult = await query(zoneSql, params);
 
     // Calculate transfusal rate: totalCalls / (transports + refusals)
     const totalCalls = parseInt(outcomes.total_calls) || 0;
@@ -153,10 +133,21 @@ export async function GET(req: NextRequest) {
     const denom = transports + refusals;
     const transfusalRate = denom > 0 ? Math.round((totalCalls / denom) * 100) / 100 : null;
 
+    // Find peak hours (top 3 busiest)
+    const peakHours = [...hourlyVolume]
+      .sort((a, b) => b.callCount - a.callCount)
+      .slice(0, 3)
+      .map(h => ({
+        hour: h.hour,
+        label: `${h.hour.toString().padStart(2, '0')}:00`,
+        callCount: h.callCount,
+      }));
+
     return NextResponse.json({
       ok: true,
       parish: { id: parish.id, name: parish.name, region: parish.region },
       dateRange: { start: startDate, end: endDate },
+      compliance,
       outcomes: {
         totalCalls,
         priorityCalls: parseInt(outcomes.priority_calls) || 0,
@@ -167,27 +158,26 @@ export async function GET(req: NextRequest) {
         noPatient: parseInt(outcomes.no_patient) || 0,
         transfusalRate,
       },
-      timePerformance: {
-        avgResponseMinutes: parseFloat(timeStats.avg_response_minutes) || null,
-        avgResponseFormatted: formatMinutes(parseFloat(timeStats.avg_response_minutes)),
-        medianResponseMinutes: parseFloat(timeStats.median_response_minutes) || null,
-        medianResponseFormatted: formatMinutes(parseFloat(timeStats.median_response_minutes)),
-        p90ResponseMinutes: parseFloat(timeStats.p90_response_minutes) || null,
-        p90ResponseFormatted: formatMinutes(parseFloat(timeStats.p90_response_minutes)),
-      },
-      hospitals: hospitalResult.rows.map(r => ({ name: r.hospital, count: parseInt(r.count) })),
-      exclusions: exclusionResult.rows.map(r => ({ reason: r.reason, count: parseInt(r.count) })),
-      zones: zoneResult.rows.map(r => ({
-        name: r.zone,
-        total: parseInt(r.total),
-        active: parseInt(r.active),
-      })),
+      responseTimeDistribution,
+      dailyTrend,
+      hourlyVolume,
+      peakHours,
+      hospitals: hospitalResult.rows.map((r: any) => ({ name: r.hospital, count: parseInt(r.count) })),
+      exclusions: exclusionResult.rows.map((r: any) => ({ reason: r.reason, count: parseInt(r.count) })),
+      zones: zoneResult.rows.map((r: any) => {
+        const evaluated = parseInt(r.evaluated) || 0;
+        const compliant = parseInt(r.compliant) || 0;
+        return {
+          name: r.zone,
+          total: parseInt(r.total),
+          active: parseInt(r.active),
+          compliancePercent: evaluated > 0 ? Math.round((compliant / evaluated) * 10000) / 100 : null,
+        };
+      }),
     });
   } catch (err: any) {
     console.error('Error fetching parish stats:', err);
     return NextResponse.json({ error: 'Failed to fetch stats', details: err.message }, { status: 500 });
-  } finally {
-    client.release();
   }
 }
 

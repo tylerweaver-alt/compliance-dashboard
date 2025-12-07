@@ -3,6 +3,49 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 
+// Toast Notification Component
+function Toast({ message, type = 'success', isVisible, onClose }) {
+  useEffect(() => {
+    if (isVisible) {
+      const timer = setTimeout(() => {
+        onClose();
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [isVisible, onClose]);
+
+  if (!isVisible) return null;
+
+  const bgColor = type === 'success' ? 'bg-green-600' : type === 'error' ? 'bg-red-600' : 'bg-blue-600';
+  const icon = type === 'success' ? (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+    </svg>
+  ) : type === 'error' ? (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+    </svg>
+  ) : (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  );
+
+  return (
+    <div className="fixed bottom-6 right-6 z-50 animate-slide-up print:hidden">
+      <div className={`${bgColor} text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3`}>
+        {icon}
+        <span className="font-medium">{message}</span>
+        <button onClick={onClose} className="ml-2 opacity-70 hover:opacity-100">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // Format zone name for display (fix common typos without changing underlying data)
 const formatZoneName = (zoneName) => {
   if (!zoneName) return zoneName;
@@ -87,9 +130,10 @@ function BreakdownItem({ label, value, isPercentage = false, highlight = false }
   );
 }
 
-// Exclusion Modal
+// Exclusion Modal - For applying new exclusions
 function ExclusionModal({ isOpen, onClose, onExclude, callId }) {
   const [selectedReason, setSelectedReason] = useState('');
+  const [customReason, setCustomReason] = useState('');
 
   const exclusionReasons = [
     'Weather Delay',
@@ -102,8 +146,18 @@ function ExclusionModal({ isOpen, onClose, onExclude, callId }) {
     'System Downtime',
     'Training Call',
     'Mutual Aid Request',
-    'Other (Admin Approved)',
+    'Other (Specify Below)',
   ];
+
+  const handleApply = () => {
+    const reason = selectedReason === 'Other (Specify Below)' ? customReason : selectedReason;
+    if (reason) {
+      onExclude(callId, reason);
+      onClose();
+      setSelectedReason('');
+      setCustomReason('');
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -111,7 +165,7 @@ function ExclusionModal({ isOpen, onClose, onExclude, callId }) {
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
       <div className="bg-slate-800 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
         <h3 className="text-xl font-bold text-white mb-4">Select Exclusion Reason</h3>
-        <div className="space-y-2 max-h-64 overflow-y-auto">
+        <div className="space-y-2 max-h-48 overflow-y-auto">
           {exclusionReasons.map((reason) => (
             <label
               key={reason}
@@ -131,6 +185,18 @@ function ExclusionModal({ isOpen, onClose, onExclude, callId }) {
             </label>
           ))}
         </div>
+        {selectedReason === 'Other (Specify Below)' && (
+          <div className="mt-4">
+            <label className="block text-slate-300 text-sm mb-2">Specify Reason:</label>
+            <textarea
+              value={customReason}
+              onChange={(e) => setCustomReason(e.target.value)}
+              placeholder="Enter exclusion reason..."
+              className="w-full px-3 py-2 bg-slate-700 text-white rounded-lg border border-slate-600 focus:border-[#004437] focus:outline-none resize-none"
+              rows={3}
+            />
+          </div>
+        )}
         <div className="flex gap-3 mt-6">
           <button
             onClick={onClose}
@@ -139,19 +205,505 @@ function ExclusionModal({ isOpen, onClose, onExclude, callId }) {
             Cancel
           </button>
           <button
-            onClick={() => {
-              if (selectedReason) {
-                onExclude(callId, selectedReason);
-                onClose();
-              }
-            }}
-            disabled={!selectedReason}
+            onClick={handleApply}
+            disabled={!selectedReason || (selectedReason === 'Other (Specify Below)' && !customReason.trim())}
             className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Apply Exclusion
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Exclusion Details Modal - For viewing/editing existing exclusions
+function ExclusionDetailsModal({ isOpen, onClose, callId, onReasonUpdated }) {
+  const [loading, setLoading] = useState(true);
+  const [exclusion, setExclusion] = useState(null);
+  const [editMode, setEditMode] = useState(false);
+  const [editedReason, setEditedReason] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (isOpen && callId) {
+      setLoading(true);
+      setError('');
+      fetch(`/api/calls/exclusion?callId=${callId}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.ok) {
+            setExclusion(data.exclusion);
+            setEditedReason(data.exclusion.reason || '');
+          }
+        })
+        .catch(err => setError('Failed to load exclusion details'))
+        .finally(() => setLoading(false));
+    }
+  }, [isOpen, callId]);
+
+  const handleSaveReason = async () => {
+    if (!editedReason.trim()) {
+      setError('Reason cannot be empty');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    try {
+      const res = await fetch('/api/calls/exclusion', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ callId, reason: editedReason }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setExclusion(data.exclusion);
+        setEditMode(false);
+        if (onReasonUpdated) onReasonUpdated(callId, editedReason);
+      } else {
+        setError(data.error || 'Failed to save');
+      }
+    } catch (err) {
+      setError('Failed to save reason');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+            <svg className="w-6 h-6 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M3 6a3 3 0 013-3h10a1 1 0 01.8 1.6L14.25 8l2.55 3.4A1 1 0 0116 13H6a1 1 0 00-1 1v3a1 1 0 11-2 0V6z"/>
+            </svg>
+          </div>
+          <h3 className="text-xl font-bold text-slate-900">Exclusion Details</h3>
+        </div>
+
+        {loading ? (
+          <div className="py-8 text-center text-slate-500">Loading...</div>
+        ) : error && !exclusion ? (
+          <div className="py-8 text-center text-red-600">{error}</div>
+        ) : exclusion ? (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-slate-500">Type:</span>
+              <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                exclusion.exclusionType === 'AUTO'
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'bg-orange-100 text-orange-700'
+              }`}>
+                {exclusion.exclusionType === 'AUTO' ? 'Auto-Excluded' : 'Manual'}
+              </span>
+            </div>
+
+            {exclusion.exclusionType === 'AUTO' && exclusion.strategyKey && (
+              <div>
+                <span className="text-sm font-medium text-slate-500">Strategy:</span>
+                <span className="ml-2 text-sm text-slate-700">{exclusion.strategyKey}</span>
+              </div>
+            )}
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-sm font-medium text-slate-500">Reason:</span>
+                {exclusion.exclusionType === 'MANUAL' && !editMode && (
+                  <button
+                    onClick={() => setEditMode(true)}
+                    className="text-xs text-[#004437] hover:underline"
+                  >
+                    Edit
+                  </button>
+                )}
+              </div>
+              {editMode ? (
+                <textarea
+                  value={editedReason}
+                  onChange={(e) => setEditedReason(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:border-[#004437] focus:outline-none resize-none text-sm"
+                  rows={3}
+                />
+              ) : (
+                <p className="text-sm text-slate-700 bg-slate-50 p-3 rounded-lg">
+                  {exclusion.reason || 'No reason provided'}
+                </p>
+              )}
+            </div>
+
+            {exclusion.excludedByEmail && (
+              <div>
+                <span className="text-sm font-medium text-slate-500">Excluded by:</span>
+                <span className="ml-2 text-sm text-slate-700">{exclusion.excludedByEmail}</span>
+              </div>
+            )}
+
+            {error && <div className="text-sm text-red-600">{error}</div>}
+          </div>
+        ) : null}
+
+        <div className="flex gap-3 mt-6">
+          {editMode ? (
+            <>
+              <button
+                onClick={() => { setEditMode(false); setEditedReason(exclusion?.reason || ''); }}
+                className="flex-1 px-4 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveReason}
+                disabled={saving}
+                className="flex-1 px-4 py-2 bg-[#004437] text-white rounded-lg hover:bg-[#003329] disabled:opacity-50"
+              >
+                {saving ? 'Saving...' : 'Save'}
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={onClose}
+              className="w-full px-4 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300"
+            >
+              Close
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Edit Time Modal - For editing time fields with required reason
+function EditTimeModal({ isOpen, onClose, callId, field, fieldLabel, currentValue, onSaved, userRole, onToast, callData }) {
+  const [newValue, setNewValue] = useState('');
+  const [reason, setReason] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  // Allowed roles for editing
+  const ALLOWED_ROLES = ['om', 'director', 'vp', 'admin'];
+  const canEdit = userRole && (userRole.is_admin || ALLOWED_ROLES.includes(userRole.role?.toLowerCase()));
+
+  // Time field order for validation (earlier fields should have earlier times)
+  const TIME_FIELD_ORDER = [
+    'call_in_que_time',        // Received
+    'call_taking_complete_time',
+    'assigned_time_first_unit',
+    'assigned_time',           // Dispatched
+    'enroute_time',            // Enroute
+    'staged_time',             // Staged
+    'arrived_at_scene_time',   // On Scene
+    'depart_scene_time',       // Departed Scene
+    'arrived_destination_time', // Arrived Destination
+    'call_cleared_time',       // Call Cleared
+  ];
+
+  useEffect(() => {
+    if (isOpen && currentValue) {
+      // Extract just the time part if it's a full datetime
+      const timePart = currentValue?.includes(' ') ? currentValue.split(' ')[1] : currentValue;
+      setNewValue(timePart || '');
+      setReason('');
+      setError('');
+    }
+  }, [isOpen, currentValue]);
+
+  // Validate time format (HH:MM:SS)
+  const isValidTimeFormat = (timeStr) => {
+    const match = timeStr.match(/^(\d{1,2}):(\d{2}):(\d{2})$/);
+    if (!match) return false;
+    const [, h, m, s] = match;
+    return parseInt(h) >= 0 && parseInt(h) <= 23 &&
+           parseInt(m) >= 0 && parseInt(m) <= 59 &&
+           parseInt(s) >= 0 && parseInt(s) <= 59;
+  };
+
+  // Parse time string to minutes since midnight for comparison
+  const timeToMinutes = (timeStr) => {
+    if (!timeStr) return null;
+    const timePart = timeStr.includes(' ') ? timeStr.split(' ')[1] : timeStr;
+    const match = timePart.match(/^(\d{1,2}):(\d{2}):(\d{2})$/);
+    if (!match) return null;
+    const [, h, m, s] = match;
+    return parseInt(h) * 60 + parseInt(m) + parseInt(s) / 60;
+  };
+
+  // Validate that new time is logically consistent with other call times
+  const validateTimeLogic = () => {
+    if (!callData || !field) return null;
+
+    const fieldIndex = TIME_FIELD_ORDER.indexOf(field);
+    if (fieldIndex === -1) return null;
+
+    const newTimeMinutes = timeToMinutes(newValue);
+    if (newTimeMinutes === null) return null;
+
+    // Check against previous fields (should be before new time)
+    for (let i = 0; i < fieldIndex; i++) {
+      const prevField = TIME_FIELD_ORDER[i];
+      const prevValue = callData[prevField];
+      if (prevValue) {
+        const prevMinutes = timeToMinutes(prevValue);
+        if (prevMinutes !== null && newTimeMinutes < prevMinutes) {
+          const prevLabel = {
+            call_in_que_time: 'Received',
+            assigned_time: 'Dispatched',
+            enroute_time: 'Enroute',
+            staged_time: 'Staged',
+            arrived_at_scene_time: 'On Scene',
+          }[prevField] || prevField;
+          return `Time cannot be before ${prevLabel} (${prevValue.split(' ')[1] || prevValue})`;
+        }
+      }
+    }
+
+    // Check against later fields (should be after new time)
+    for (let i = fieldIndex + 1; i < TIME_FIELD_ORDER.length; i++) {
+      const nextField = TIME_FIELD_ORDER[i];
+      const nextValue = callData[nextField];
+      if (nextValue) {
+        const nextMinutes = timeToMinutes(nextValue);
+        if (nextMinutes !== null && newTimeMinutes > nextMinutes) {
+          const nextLabel = {
+            assigned_time: 'Dispatched',
+            enroute_time: 'Enroute',
+            arrived_at_scene_time: 'On Scene',
+            depart_scene_time: 'Departed',
+            call_cleared_time: 'Cleared',
+          }[nextField] || nextField;
+          return `Time cannot be after ${nextLabel} (${nextValue.split(' ')[1] || nextValue})`;
+        }
+      }
+    }
+
+    return null; // No validation errors
+  };
+
+  const handleSave = async () => {
+    if (!newValue.trim()) {
+      setError('New time value is required');
+      return;
+    }
+
+    // Validate time format
+    if (!isValidTimeFormat(newValue.trim())) {
+      setError('Invalid time format. Use HH:MM:SS (e.g., 21:43:00)');
+      return;
+    }
+
+    // Validate time logic
+    const logicError = validateTimeLogic();
+    if (logicError) {
+      setError(logicError);
+      return;
+    }
+
+    if (!reason.trim()) {
+      setError('Reason is required for all time edits');
+      return;
+    }
+
+    setSaving(true);
+    setError('');
+
+    try {
+      // Build full datetime value if original had date
+      let fullNewValue = newValue;
+      if (currentValue?.includes(' ')) {
+        const datePart = currentValue.split(' ')[0];
+        fullNewValue = `${datePart} ${newValue}`;
+      }
+
+      const res = await fetch(`/api/calls/${callId}/edit-time`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ field, newValue: fullNewValue, reason }),
+      });
+      const data = await res.json();
+
+      if (data.ok) {
+        if (onSaved) onSaved(callId, field, fullNewValue);
+        if (onToast) onToast(`${fieldLabel} updated and logged to Audit Log`, 'success');
+        onClose();
+      } else {
+        setError(data.error || 'Failed to save');
+      }
+    } catch (err) {
+      setError('Failed to save time edit');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl p-6 max-w-lg w-full mx-4 shadow-2xl">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+            <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h3 className="text-xl font-bold text-slate-900">Edit {fieldLabel || field}</h3>
+        </div>
+
+        {!canEdit ? (
+          <div className="py-6 text-center">
+            <p className="text-red-600 font-medium">Permission Denied</p>
+            <p className="text-sm text-slate-500 mt-2">Only OM, Director, VP, or Admin can edit time fields.</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {/* Current Value */}
+            <div>
+              <label className="block text-sm font-medium text-slate-500 mb-1">Current Value</label>
+              <div className="px-3 py-2 bg-slate-100 rounded-lg text-slate-700 font-mono">
+                {currentValue || '—'}
+              </div>
+            </div>
+
+            {/* New Value */}
+            <div>
+              <label className="block text-sm font-medium text-slate-500 mb-1">New Value</label>
+              <input
+                type="text"
+                value={newValue}
+                onChange={(e) => setNewValue(e.target.value)}
+                placeholder="HH:MM:SS (e.g., 21:43:00)"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:border-[#004437] focus:outline-none font-mono"
+              />
+              <p className="text-xs text-slate-400 mt-1">Format: HH:MM:SS (24-hour)</p>
+            </div>
+
+            {/* Reason (Required) */}
+            <div>
+              <label className="block text-sm font-medium text-slate-500 mb-1">
+                Reason <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="Enter the reason for this time adjustment..."
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:border-[#004437] focus:outline-none resize-none"
+                rows={4}
+              />
+              <p className="text-xs text-slate-400 mt-1">
+                This reason will be recorded in the audit log.
+              </p>
+            </div>
+
+            {error && (
+              <div className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</div>
+            )}
+          </div>
+        )}
+
+        <div className="flex gap-3 mt-6">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300"
+          >
+            Cancel
+          </button>
+          {canEdit && (
+            <button
+              onClick={handleSave}
+              disabled={saving || !newValue.trim() || !reason.trim()}
+              className="flex-1 px-4 py-2 bg-[#004437] text-white rounded-lg hover:bg-[#003329] disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {saving ? 'Saving...' : 'Save'}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Audit Log Panel Component - Shows time edits grouped by call (compact, print-friendly)
+function AuditLogPanel({ callEdits, isOpen }) {
+  if (!isOpen || !callEdits || callEdits.length === 0) return null;
+
+  const formatDateTime = (isoString) => {
+    if (!isoString) return '—';
+    const d = new Date(isoString);
+    return d.toLocaleString('en-US', {
+      month: '2-digit', day: '2-digit', year: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: true
+    });
+  };
+
+  const extractTime = (dateTimeStr) => {
+    if (!dateTimeStr) return '—';
+    const parts = dateTimeStr.split(' ');
+    return parts.length > 1 ? parts[1] : dateTimeStr;
+  };
+
+  return (
+    <div className="print:break-before-page audit-log-print">
+      {/* Header */}
+      <div className="audit-log-header px-4 py-2 border-b border-slate-300 bg-slate-100">
+        <h2 className="text-sm font-semibold text-slate-700 text-center underline decoration-1 decoration-slate-400 underline-offset-2">
+          Time Edit Audit Log — {callEdits.length} call(s)
+        </h2>
+      </div>
+
+      {/* Compact Call List */}
+      <div className="divide-y divide-slate-200">
+        {callEdits.map((callData) => (
+          <div key={callData.callId} className="bg-white">
+            {/* Thin Call Header - Same on screen and print */}
+            <div className="audit-log-call-header bg-slate-300 text-slate-900 px-3 py-1.5 flex items-center justify-between text-xs border-b border-slate-400">
+              <div className="flex items-center gap-4">
+                <span className="font-bold">
+                  Call #{callData.callInfo.responseNumber?.split('-')[1] || callData.callInfo.responseNumber || callData.callId}
+                </span>
+                <span className="text-slate-600">{callData.callInfo.responseDate}</span>
+                <span className="text-slate-600">Unit: {callData.callInfo.unit || '—'}</span>
+                <span className="text-slate-600">Zone: {callData.callInfo.zone || '—'}</span>
+              </div>
+              <span className="audit-log-badge bg-slate-600 text-white px-2 py-0.5 rounded text-[10px] font-medium">
+                Total Edits: {callData.edits.length}
+              </span>
+            </div>
+
+            {/* Compact Edits */}
+            <div className="text-xs">
+              {callData.edits.map((edit, idx) => (
+                <div
+                  key={edit.id || idx}
+                  className={`px-3 py-1.5 flex items-start gap-3 ${idx % 2 === 0 ? 'audit-log-row-even bg-slate-50' : 'audit-log-row-odd bg-white'} ${idx < callData.edits.length - 1 ? 'border-b border-slate-100' : ''}`}
+                >
+                  {/* Field + Time Change */}
+                  <div className="flex items-center gap-2 min-w-[200px]">
+                    <span className="font-semibold text-slate-700 w-16">{edit.fieldLabel}:</span>
+                    <span className="font-mono text-red-600">{extractTime(edit.oldValue)}</span>
+                    <span className="text-slate-400">→</span>
+                    <span className="font-mono text-green-600">{extractTime(edit.newValue)}</span>
+                  </div>
+                  {/* Reason */}
+                  <div className="flex-1 text-slate-600 truncate" title={edit.reason}>
+                    {edit.reason}
+                  </div>
+                  {/* Who/When */}
+                  <div className="text-slate-400 text-right whitespace-nowrap">
+                    {edit.editedByName || edit.editedBy?.split('@')[0]} · {formatDateTime(edit.editedAt)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Bottom padding for scroll */}
+      <div className="h-48 print:h-0"></div>
     </div>
   );
 }
@@ -174,15 +726,15 @@ const ALL_COLUMNS = {
     className: 'text-slate-700',
     title: true // Enable tooltip with full address
   },
-  received: { label: 'Rcvd', getValue: (call, parseTimeOnly) => parseTimeOnly(call.call_in_que_time), className: 'text-slate-600' },
-  dispatched: { label: 'Disp', getValue: (call, parseTimeOnly) => parseTimeOnly(call.assigned_time), className: 'text-slate-600' },
-  enroute: { label: 'Enrt', getValue: (call, parseTimeOnly) => parseTimeOnly(call.enroute_time), className: 'text-slate-600' },
-  staged: { label: 'Stgd', getValue: (call, parseTimeOnly) => parseTimeOnly(call.staged_time), className: 'text-slate-600' },
-  on_scene: { label: 'OnScn', getValue: (call, parseTimeOnly) => parseTimeOnly(call.arrived_at_scene_time), className: 'text-slate-600' },
-  depart: { label: 'Dept', getValue: (call, parseTimeOnly) => parseTimeOnly(call.depart_scene_time), className: 'text-slate-600' },
-  arrived: { label: 'Arvd', getValue: (call, parseTimeOnly) => parseTimeOnly(call.arrived_destination_time), className: 'text-slate-600' },
-  available: { label: 'Avail', getValue: (call, parseTimeOnly) => parseTimeOnly(call.call_cleared_time), className: 'text-slate-600' },
-  response: { label: 'Resp', isResponseTime: true },
+  received: { label: 'Rcvd', getValue: (call, parseTimeOnly) => parseTimeOnly(call.call_in_que_time), className: 'text-slate-600', isEditableTime: true, dbField: 'call_in_que_time' },
+  dispatched: { label: 'Disp', getValue: (call, parseTimeOnly) => parseTimeOnly(call.assigned_time), className: 'text-slate-600', isEditableTime: true, dbField: 'assigned_time' },
+  enroute: { label: 'Enrt', getValue: (call, parseTimeOnly) => parseTimeOnly(call.enroute_time), className: 'text-slate-600', isEditableTime: true, dbField: 'enroute_time' },
+  staged: { label: 'Stgd', getValue: (call, parseTimeOnly) => parseTimeOnly(call.staged_time), className: 'text-slate-600', isEditableTime: true, dbField: 'staged_time' },
+  on_scene: { label: 'OnScn', getValue: (call, parseTimeOnly) => parseTimeOnly(call.arrived_at_scene_time), className: 'text-slate-600', isEditableTime: true, dbField: 'arrived_at_scene_time' },
+  depart: { label: 'Dept', getValue: (call, parseTimeOnly) => parseTimeOnly(call.depart_scene_time), className: 'text-slate-600', isEditableTime: true, dbField: 'depart_scene_time' },
+  arrived: { label: 'Arvd', getValue: (call, parseTimeOnly) => parseTimeOnly(call.arrived_destination_time), className: 'text-slate-600', isEditableTime: true, dbField: 'arrived_destination_time' },
+  available: { label: 'Avail', getValue: (call, parseTimeOnly) => parseTimeOnly(call.call_cleared_time), className: 'text-slate-600', isEditableTime: true, dbField: 'call_cleared_time' },
+  response: { label: 'Resp', isResponseTime: true, isEditableTime: true },
   status: { label: 'Status', isStatus: true },
   priority: { label: 'Pri', getValue: (call) => call.priority, className: 'text-slate-700' },
   response_area: { label: 'Zone', getValue: (call) => formatZoneName(call.response_area) || '—', className: 'text-slate-700' },
@@ -219,17 +771,17 @@ const ALL_COLUMNS = {
   master_incident_delay_reason_description: { label: 'Delay Reason', getValue: (call) => call.master_incident_delay_reason_description || '—' },
   vehicle_assigned_delay_reason: { label: 'Vehicle Delay', getValue: (call) => call.vehicle_assigned_delay_reason || '—' },
 
-  // Timestamp columns
-  call_in_que_time: { label: 'Call In Queue', getValue: (call, parseTimeOnly) => parseTimeOnly(call.call_in_que_time) },
-  call_taking_complete_time: { label: 'Call Taking Complete', getValue: (call, parseTimeOnly) => parseTimeOnly(call.call_taking_complete_time) },
-  assigned_time_first_unit: { label: 'Assigned (First)', getValue: (call, parseTimeOnly) => parseTimeOnly(call.assigned_time_first_unit) },
-  assigned_time: { label: 'Assigned (Dispatched)', getValue: (call, parseTimeOnly) => parseTimeOnly(call.assigned_time) },
-  enroute_time: { label: 'Enroute Time', getValue: (call, parseTimeOnly) => parseTimeOnly(call.enroute_time) },
-  staged_time: { label: 'Staged Time', getValue: (call, parseTimeOnly) => parseTimeOnly(call.staged_time) },
-  arrived_at_scene_time: { label: 'Arrived Scene', getValue: (call, parseTimeOnly) => parseTimeOnly(call.arrived_at_scene_time) },
-  depart_scene_time: { label: 'Depart Scene', getValue: (call, parseTimeOnly) => parseTimeOnly(call.depart_scene_time) },
-  arrived_destination_time: { label: 'Arrived Dest', getValue: (call, parseTimeOnly) => parseTimeOnly(call.arrived_destination_time) },
-  call_cleared_time: { label: 'Call Cleared', getValue: (call, parseTimeOnly) => parseTimeOnly(call.call_cleared_time) },
+  // Timestamp columns (all editable)
+  call_in_que_time: { label: 'Call In Queue', getValue: (call, parseTimeOnly) => parseTimeOnly(call.call_in_que_time), isEditableTime: true, dbField: 'call_in_que_time' },
+  call_taking_complete_time: { label: 'Call Taking Complete', getValue: (call, parseTimeOnly) => parseTimeOnly(call.call_taking_complete_time), isEditableTime: true, dbField: 'call_taking_complete_time' },
+  assigned_time_first_unit: { label: 'Assigned (First)', getValue: (call, parseTimeOnly) => parseTimeOnly(call.assigned_time_first_unit), isEditableTime: true, dbField: 'assigned_time_first_unit' },
+  assigned_time: { label: 'Assigned (Dispatched)', getValue: (call, parseTimeOnly) => parseTimeOnly(call.assigned_time), isEditableTime: true, dbField: 'assigned_time' },
+  enroute_time: { label: 'Enroute Time', getValue: (call, parseTimeOnly) => parseTimeOnly(call.enroute_time), isEditableTime: true, dbField: 'enroute_time' },
+  staged_time: { label: 'Staged Time', getValue: (call, parseTimeOnly) => parseTimeOnly(call.staged_time), isEditableTime: true, dbField: 'staged_time' },
+  arrived_at_scene_time: { label: 'Arrived Scene', getValue: (call, parseTimeOnly) => parseTimeOnly(call.arrived_at_scene_time), isEditableTime: true, dbField: 'arrived_at_scene_time' },
+  depart_scene_time: { label: 'Depart Scene', getValue: (call, parseTimeOnly) => parseTimeOnly(call.depart_scene_time), isEditableTime: true, dbField: 'depart_scene_time' },
+  arrived_destination_time: { label: 'Arrived Dest', getValue: (call, parseTimeOnly) => parseTimeOnly(call.arrived_destination_time), isEditableTime: true, dbField: 'arrived_destination_time' },
+  call_cleared_time: { label: 'Call Cleared', getValue: (call, parseTimeOnly) => parseTimeOnly(call.call_cleared_time), isEditableTime: true, dbField: 'call_cleared_time' },
 
   // Response time columns
   queue_response_time: { label: 'Queue Response', getValue: (call) => call.queue_response_time || '—' },
@@ -255,10 +807,31 @@ function CallsPageContent() {
   const [selectedZone, setSelectedZone] = useState('all');
   const [zones, setZones] = useState([]);
   const [exclusionModal, setExclusionModal] = useState({ open: false, callId: null });
+  const [exclusionDetailsModal, setExclusionDetailsModal] = useState({ open: false, callId: null });
 
-  // Editable response time state
+  // Editable time field state
+  const [editTimeModal, setEditTimeModal] = useState({ open: false, callId: null, field: null, fieldLabel: null, currentValue: null, callData: null });
+
+  // Editable response time state (legacy - for inline editing)
   const [editingResponseTime, setEditingResponseTime] = useState(null); // { callId, minutes }
   const [responseTimeOverrides, setResponseTimeOverrides] = useState({}); // { callId: minutes }
+
+  // User role for permission checks
+  const [userRole, setUserRole] = useState(null);
+
+  // Audit log state
+  const [showAuditLog, setShowAuditLog] = useState(false);
+  const [auditLogData, setAuditLogData] = useState([]);
+  const [auditLogLoading, setAuditLogLoading] = useState(false);
+
+  // Active tab state: 'calls' or 'audit'
+  const [activeTab, setActiveTab] = useState('calls');
+
+  // Toast notification state
+  const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
+  const showToast = (message, type = 'success') => {
+    setToast({ visible: true, message, type });
+  };
 
   // Parish settings
   const [parishSettings, setParishSettings] = useState(null);
@@ -286,6 +859,27 @@ function CallsPageContent() {
     8: 'Concordia',
     20: 'Allen',
   };
+
+  // Fetch user session/role for permission checks
+  useEffect(() => {
+    async function fetchUserRole() {
+      try {
+        const res = await fetch('/api/auth/session');
+        if (res.ok) {
+          const session = await res.json();
+          if (session?.user) {
+            setUserRole({
+              role: session.user.role,
+              is_admin: session.user.is_admin,
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch user role:', err);
+      }
+    }
+    fetchUserRole();
+  }, []);
 
   // Auto-detect date range and fetch parish settings on initial load
   useEffect(() => {
@@ -431,6 +1025,36 @@ function CallsPageContent() {
       setRefetching(false);
     }
   }
+
+  // Fetch audit log data for the current date range
+  async function fetchAuditLog() {
+    if (!parishId || !startDate || !endDate) return;
+
+    setAuditLogLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.set('parish_id', parishId);
+      if (startDate) params.set('start', startDate);
+      if (endDate) params.set('end', endDate);
+
+      const res = await fetch(`/api/calls/time-edits?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        setAuditLogData(data.callEdits || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch audit log:', err);
+    } finally {
+      setAuditLogLoading(false);
+    }
+  }
+
+  // Fetch audit log when dates change (needed for printing even if panel is hidden)
+  useEffect(() => {
+    if (parishId && startDate && endDate && datesInitialized) {
+      fetchAuditLog();
+    }
+  }, [parishId, startDate, endDate, datesInitialized]);
 
   // Filter calls by zone
   const zoneFilteredCalls = selectedZone === 'all'
@@ -807,9 +1431,25 @@ function CallsPageContent() {
     return { zone, ...getZoneStats(zoneCalls) };
   });
 
-  // Sort calls by zone then date for "All Zones" view
+  // Helper to extract minute value from zone name (e.g., "5 Minute Response Zone" -> 5)
+  const getZoneMinutes = (zoneName) => {
+    if (!zoneName) return 999; // No zone = parish-wide, put at end
+    const match = zoneName.match(/(\d+)\s*min/i);
+    if (match) return parseInt(match[1], 10);
+    // Check if it's a parish-wide or outside zone
+    if (zoneName.toLowerCase().includes('parish') || zoneName.toLowerCase().includes('outside')) {
+      return 998; // Put parish-wide before truly unknown zones
+    }
+    return 997; // Unknown zones go near the end but before parish-wide
+  };
+
+  // Sort calls by zone (lowest minute first) then date for "All Zones" view
   const sortedCallsForAllZones = [...complianceCalls].sort((a, b) => {
-    // First sort by zone
+    // First sort by zone minute threshold (ascending)
+    const zoneMinA = getZoneMinutes(a.response_area);
+    const zoneMinB = getZoneMinutes(b.response_area);
+    if (zoneMinA !== zoneMinB) return zoneMinA - zoneMinB;
+    // Then by zone name for same-minute zones
     const zoneA = a.response_area || '';
     const zoneB = b.response_area || '';
     if (zoneA !== zoneB) return zoneA.localeCompare(zoneB);
@@ -988,7 +1628,7 @@ function CallsPageContent() {
         {selectedZone === 'all' && allZoneStats.length > 0 ? (
           <div className="space-y-4 print:space-y-1 mb-6 print:mb-2">
             {allZoneStats.map((zs, idx) => (
-              <div key={zs.zone} className={`bg-white rounded-xl p-6 print:p-2 shadow-sm border border-slate-200 ${idx === allZoneStats.length - 1 ? 'print:break-after-page' : ''}`}>
+              <div key={zs.zone} className={`bg-slate-50 rounded-xl p-6 print:p-2 shadow-xl border border-slate-300 print:bg-white print:border-slate-200 print:shadow-none ${idx === allZoneStats.length - 1 ? 'print:break-after-page' : ''}`}>
                 <h2 className="text-lg print:text-sm font-semibold text-slate-700 mb-4 print:mb-1">{formatZoneName(zs.zone)}</h2>
                 <div className="flex items-center gap-8 print:gap-2">
                   <div className="flex flex-col items-center gap-4 print:gap-1">
@@ -1020,7 +1660,7 @@ function CallsPageContent() {
           </div>
         ) : (
           /* Single Zone View (no zones exist OR specific zone selected) */
-          <div className="bg-white rounded-xl p-6 mb-6 shadow-sm border border-slate-200 print:break-after-page">
+          <div className="bg-slate-50 rounded-xl p-6 mb-6 shadow-xl border border-slate-300 print:bg-white print:border-slate-200 print:shadow-none print:break-after-page">
             <h2 className="text-lg font-semibold text-slate-700 mb-4">
               {/* Title: Show zone name, or "Average Response Time" if no zones */}
               {zones.length > 0 ? formatZoneName(selectedZone) : 'Average Response Time'}
@@ -1054,8 +1694,8 @@ function CallsPageContent() {
         )}
 
         {/* Call Breakdown */}
-        <div className="bg-white rounded-xl p-6 mb-6 shadow-sm border border-slate-200 print:hidden">
-          <h2 className="text-lg font-semibold text-slate-700 mb-5">Call Breakdown</h2>
+        <div className="bg-slate-50 rounded-xl p-6 mb-6 shadow-xl border border-slate-300 print:hidden">
+          <h2 className="text-lg font-semibold text-slate-700 mb-5 text-center underline decoration-2 decoration-slate-400 underline-offset-4">Call Breakdown</h2>
           <div className="grid grid-cols-6 gap-3">
             <BreakdownItem label="Total Calls" value={breakdown.totalCalls} highlight />
             <BreakdownItem label="Transports" value={breakdown.transports} />
@@ -1066,18 +1706,64 @@ function CallsPageContent() {
           </div>
         </div>
 
-        {/* Calls Table - Priority 1-3 calls that arrived at scene */}
-        {/* When "All Zones" selected, sort by zone then date; otherwise use normal order */}
-        <div className="bg-white rounded-xl overflow-hidden shadow-sm border border-slate-200 print:shadow-none print:border-0">
-          <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between print:py-2">
-            <h2 className="text-lg font-semibold text-slate-700 print:text-base">
-              Call Details (Priority 1-3){selectedZone === 'all' && zones.length > 0 ? ' - All Response Zones' : ''}
-            </h2>
-            <span className="text-sm text-slate-500 print:text-base print:font-bold print:text-slate-800">{complianceCalls.length} calls</span>
+        {/* Calls Table / Audit Log - Folder Tab Navigation */}
+        <div className="print:shadow-none print:border-0">
+          {/* Folder Tabs */}
+          <div className="flex items-end print:hidden">
+            {/* Call Details Tab */}
+            <button
+              onClick={() => setActiveTab('calls')}
+              className={`relative px-6 py-3 font-semibold text-sm rounded-t-lg transition-all border-t-2 border-l border-r ${
+                activeTab === 'calls'
+                  ? 'bg-slate-50 text-slate-800 border-t-[#004437] border-l-slate-300 border-r-slate-300 z-10 -mb-px shadow-md'
+                  : 'bg-slate-300 text-slate-600 hover:bg-slate-200 hover:text-slate-700 border-t-slate-400 border-l-slate-400 border-r-slate-400 -mb-px mr-[-1px]'
+              }`}
+              style={activeTab === 'calls' ? {} : { transform: 'translateY(3px)' }}
+            >
+              Call Details (Priority 1-3)
+              {selectedZone === 'all' && zones.length > 0 ? ' - All Zones' : ''}
+              <span className={`ml-2 text-xs font-normal ${activeTab === 'calls' ? 'text-slate-500' : 'text-slate-500'}`}>
+                {complianceCalls.length}
+              </span>
+            </button>
+
+            {/* Audit Log Tab */}
+            <button
+              onClick={() => setActiveTab('audit')}
+              className={`relative px-6 py-3 font-semibold text-sm rounded-t-lg transition-all border-t-2 border-l border-r ${
+                activeTab === 'audit'
+                  ? 'bg-slate-50 text-slate-800 border-t-[#004437] border-l-slate-300 border-r-slate-300 z-10 -mb-px shadow-md'
+                  : 'bg-slate-300 text-slate-600 hover:bg-slate-200 hover:text-slate-700 border-t-slate-400 border-l-slate-400 border-r-slate-400 -mb-px mr-[-1px]'
+              }`}
+              style={activeTab === 'audit' ? {} : { transform: 'translateY(3px)' }}
+            >
+              Audit Log
+              {auditLogData.length > 0 && (
+                <span className="ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-600 text-white">
+                  {auditLogData.length}
+                </span>
+              )}
+            </button>
+
+            {/* Spacer to fill rest of tab bar */}
+            <div className="flex-1 border-b border-slate-300 -mb-px"></div>
           </div>
+
+          {/* Print-only header */}
+          <div className="hidden print:block px-6 py-2 border-b border-slate-200 bg-white">
+            <h2 className="text-base font-semibold text-slate-800">
+              Call Details (Priority 1-3) - {complianceCalls.length} calls
+            </h2>
+          </div>
+
+          {/* Tab Content Container */}
+          <div className="bg-slate-50 rounded-b-xl rounded-tr-xl overflow-hidden shadow-xl border border-slate-300 border-t-0 print:rounded-none print:border print:border-slate-200 print:bg-white print:shadow-none">
+
+          {/* Call Details Tab Content */}
+          <div className={`${activeTab === 'calls' ? '' : 'hidden'} print:block`}>
           <div className="overflow-x-auto">
             <table className="w-full text-xs calls-table">
-              <thead className="bg-slate-50 print:bg-slate-100">
+              <thead className="bg-slate-50 print:bg-slate-300">
                 <tr>
                   {reportColumns.map(colId => {
                     const col = ALL_COLUMNS[colId];
@@ -1092,74 +1778,72 @@ function CallsPageContent() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {(selectedZone === 'all' && zones.length > 0 ? sortedCallsForAllZones : complianceCalls).map((call) => {
-                  const responseMinutes = calculateResponseTime(call);
-                  // Use zone-specific threshold for compliance check
-                  const callCompliant = isCallCompliant(call);
-                  const isNonCompliant = callCompliant === false;
-                  const isExcluded = call.is_excluded;
-                  const isConfirmed = call.is_confirmed;
+                {(() => {
+                  const callsToRender = selectedZone === 'all' && zones.length > 0 ? sortedCallsForAllZones : complianceCalls;
+                  let lastZone = null;
+                  const rows = [];
 
-                  return (
-                    <tr
-                      key={call.id}
-                      className={`
-                        ${isNonCompliant ? 'bg-red-50 print:bg-red-50' : ''}
-                        ${isExcluded ? 'opacity-60' : ''}
-                        hover:bg-slate-50
-                      `}
-                    >
+                  callsToRender.forEach((call, index) => {
+                    const responseMinutes = calculateResponseTime(call);
+                    const callCompliant = isCallCompliant(call);
+                    const isNonCompliant = callCompliant === false;
+                    const isExcluded = call.is_excluded;
+                    const isConfirmed = call.is_confirmed;
+                    const currentZone = call.response_area;
+
+                    // Insert zone header when zone changes (only when "All Zones" is selected)
+                    if (selectedZone === 'all' && zones.length > 0 && currentZone !== lastZone) {
+                      const zoneCallCount = callsToRender.filter(c => c.response_area === currentZone).length;
+                      rows.push(
+                        <tr key={`zone-header-${currentZone}-${index}`} className="bg-slate-200 print:bg-slate-400">
+                          <td
+                            colSpan={reportColumns.length + 1}
+                            className="px-3 py-2 border-t-2 border-b border-slate-300 print:border-slate-500"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <div className="w-1 h-4 bg-slate-500 print:bg-slate-700 rounded"></div>
+                                <span className="font-semibold text-slate-700 print:text-slate-900 text-xs uppercase tracking-wide">
+                                  {formatZoneName(currentZone) || 'Unknown Zone'}
+                                </span>
+                              </div>
+                              <span className="text-xs text-slate-500 print:text-slate-800 font-medium">
+                                {zoneCallCount} call{zoneCallCount !== 1 ? 's' : ''}
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                      lastZone = currentZone;
+                    }
+
+                    rows.push(
+                      <tr
+                        key={call.id}
+                        className={`
+                          ${isNonCompliant ? 'bg-red-50 print:bg-red-50' : ''}
+                          ${isExcluded ? 'opacity-60' : ''}
+                          hover:bg-slate-50
+                        `}
+                      >
                       {reportColumns.map(colId => {
                         const col = ALL_COLUMNS[colId];
                         if (!col) return null;
 
-                        // Special handling for response time column - editable
+                        // Special handling for response time column - now read-only (calculated from editable time fields)
+                        // To adjust response time, edit the underlying times (Dispatched, On Scene, etc.)
                         if (col.isResponseTime) {
-                          const isEditing = editingResponseTime?.callId === call.id;
-                          const hasOverride = responseTimeOverrides[call.id] !== undefined;
+                          const hasEdits = call.has_time_edits;
 
                           return (
-                            <td key={colId} className={`px-1 py-0.5 font-semibold whitespace-nowrap ${isNonCompliant ? 'text-red-600' : 'text-green-600'} print:pointer-events-none`}>
-                              {isEditing ? (
-                                <div className="flex items-center gap-0.5">
-                                  <input
-                                    type="text"
-                                    defaultValue={editingResponseTime.value}
-                                    className="w-14 px-1 py-0 text-xs border border-slate-300 rounded text-center"
-                                    autoFocus
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter') {
-                                        saveResponseTime(call.id, e.target.value);
-                                      } else if (e.key === 'Escape') {
-                                        setEditingResponseTime(null);
-                                      }
-                                    }}
-                                    onBlur={(e) => saveResponseTime(call.id, e.target.value)}
-                                  />
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-0.5 group/resp cursor-pointer print:cursor-default">
-                                  <span
-                                    onClick={() => handleResponseTimeEdit(call.id, responseMinutes)}
-                                    className={`${hasOverride ? 'underline decoration-dotted' : ''}`}
-                                    title={hasOverride ? 'Modified (click to edit)' : 'Click to edit'}
-                                  >
-                                    {formatResponseTime(responseMinutes)}
-                                  </span>
-                                  <div className="flex flex-col opacity-0 group-hover/resp:opacity-100 transition-opacity print:hidden">
-                                    <button
-                                      onClick={(e) => { e.stopPropagation(); adjustResponseTime(call.id, responseMinutes, -1); }}
-                                      className="text-[8px] leading-none text-slate-400 hover:text-slate-600"
-                                      title="Decrease 1 second"
-                                    >▲</button>
-                                    <button
-                                      onClick={(e) => { e.stopPropagation(); adjustResponseTime(call.id, responseMinutes, 1); }}
-                                      className="text-[8px] leading-none text-slate-400 hover:text-slate-600"
-                                      title="Increase 1 second"
-                                    >▼</button>
-                                  </div>
-                                </div>
-                              )}
+                            <td
+                              key={colId}
+                              className={`px-1 py-0.5 font-semibold whitespace-nowrap ${isNonCompliant ? 'text-red-600' : 'text-green-600'}`}
+                              title={hasEdits ? 'Calculated from edited time fields' : 'Calculated: On Scene − Queue Time'}
+                            >
+                              <span className={hasEdits ? 'underline decoration-dotted decoration-blue-400' : ''}>
+                                {formatResponseTime(responseMinutes)}
+                              </span>
                             </td>
                           );
                         }
@@ -1171,9 +1855,16 @@ function CallsPageContent() {
                               {isNonCompliant && (
                                 <>
                                   {isExcluded ? (
-                                    <span className="px-1 py-0.5 bg-slate-200 border border-slate-400 text-red-600 text-[9px] rounded font-medium">
+                                    <button
+                                      onClick={() => setExclusionDetailsModal({ open: true, callId: call.id })}
+                                      className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-red-100 border border-red-300 text-red-700 text-[9px] rounded font-medium hover:bg-red-200 transition-colors cursor-pointer"
+                                      title="View exclusion details"
+                                    >
+                                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M3 6a3 3 0 013-3h10a1 1 0 01.8 1.6L14.25 8l2.55 3.4A1 1 0 0116 13H6a1 1 0 00-1 1v3a1 1 0 11-2 0V6z"/>
+                                      </svg>
                                       Excl
-                                    </span>
+                                    </button>
                                   ) : isConfirmed ? (
                                     <span className="px-1 py-0.5 bg-yellow-100 border border-yellow-400 text-red-600 text-[9px] rounded font-medium">
                                       Conf
@@ -1181,6 +1872,31 @@ function CallsPageContent() {
                                   ) : null}
                                 </>
                               )}
+                            </td>
+                          );
+                        }
+
+                        // Editable time columns (click to edit with reason)
+                        if (col.isEditableTime && col.dbField) {
+                          const value = col.getValue(call, parseTimeOnly, parseCallNumber);
+                          const rawValue = call[col.dbField]; // Full value for editing
+                          const hasEdits = call.has_time_edits;
+                          return (
+                            <td key={colId} className={`px-1 py-0.5 whitespace-nowrap ${col.className || 'text-slate-600'}`}>
+                              <button
+                                onClick={() => setEditTimeModal({
+                                  open: true,
+                                  callId: call.id,
+                                  field: col.dbField,
+                                  fieldLabel: col.label,
+                                  currentValue: rawValue,
+                                  callData: call
+                                })}
+                                className={`hover:bg-slate-100 px-0.5 rounded transition-colors cursor-pointer ${hasEdits ? 'underline decoration-dotted decoration-blue-400' : ''}`}
+                                title={hasEdits ? 'This field has been edited (click to edit)' : 'Click to edit'}
+                              >
+                                {value || '—'}
+                              </button>
                             </td>
                           );
                         }
@@ -1213,13 +1929,41 @@ function CallsPageContent() {
                           </div>
                         )}
                       </td>
-                    </tr>
-                  );
-                })}
+                      </tr>
+                    );
+                  });
+
+                  return rows;
+                })()}
               </tbody>
             </table>
           </div>
-        </div>
+          </div> {/* End Call Details Tab Content */}
+
+          {/* Audit Log Tab Content */}
+          <div className={`${activeTab === 'audit' ? '' : 'hidden'} print:block`}>
+            {auditLogLoading ? (
+              <div className="p-8 text-center text-slate-500">
+                Loading audit log...
+              </div>
+            ) : auditLogData.length > 0 ? (
+              <AuditLogPanel callEdits={auditLogData} isOpen={true} />
+            ) : (
+              <div className="p-8 text-center text-slate-500">
+                <svg className="w-12 h-12 mx-auto mb-3 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <p className="font-medium">No Time Edits</p>
+                <p className="text-sm mt-1">No time fields have been edited for calls in this date range.</p>
+              </div>
+            )}
+          </div>
+
+          </div> {/* End Tab Content Container */}
+        </div> {/* End Folder Tabs container */}
+
+        {/* Bottom padding for scrolling past content */}
+        <div className="h-64 print:h-0"></div>
       </div>
       </div> {/* End scrollable content area */}
 
@@ -1229,6 +1973,48 @@ function CallsPageContent() {
         callId={exclusionModal.callId}
         onClose={() => setExclusionModal({ open: false, callId: null })}
         onExclude={handleExclude}
+      />
+
+      {/* Exclusion Details Modal - for viewing/editing existing exclusions */}
+      <ExclusionDetailsModal
+        isOpen={exclusionDetailsModal.open}
+        callId={exclusionDetailsModal.callId}
+        onClose={() => setExclusionDetailsModal({ open: false, callId: null })}
+        onReasonUpdated={(callId, newReason) => {
+          setCalls(calls.map(c => c.id === callId ? { ...c, exclusion_reason: newReason } : c));
+        }}
+      />
+
+      {/* Edit Time Modal - for editing time fields with required reason */}
+      <EditTimeModal
+        isOpen={editTimeModal.open}
+        callId={editTimeModal.callId}
+        field={editTimeModal.field}
+        fieldLabel={editTimeModal.fieldLabel}
+        currentValue={editTimeModal.currentValue}
+        callData={editTimeModal.callData}
+        userRole={userRole}
+        onClose={() => setEditTimeModal({ open: false, callId: null, field: null, fieldLabel: null, currentValue: null, callData: null })}
+        onSaved={(callId, field, newValue) => {
+          // Update the call in local state
+          setCalls(calls.map(c => {
+            if (c.id === callId) {
+              return { ...c, [field]: newValue, has_time_edits: true };
+            }
+            return c;
+          }));
+          // Refresh audit log
+          fetchAuditLog();
+        }}
+        onToast={showToast}
+      />
+
+      {/* Toast Notification */}
+      <Toast
+        message={toast.message}
+        type={toast.type}
+        isVisible={toast.visible}
+        onClose={() => setToast({ ...toast, visible: false })}
       />
     </div>
   );

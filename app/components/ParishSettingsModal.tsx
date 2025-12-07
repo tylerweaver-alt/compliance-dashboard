@@ -115,6 +115,7 @@ const ParishSettingsModal = ({
   const [targetAvgMinutes, setTargetAvgMinutes] = useState<string>('');
   const [useZones, setUseZones] = useState<boolean>(false);
   const [responseStartTime, setResponseStartTime] = useState<string>('dispatched');
+  const [targetCompliancePercent, setTargetCompliancePercent] = useState<string>('90');
 
   // Report columns
   const [reportColumns, setReportColumns] = useState<string[]>([]);
@@ -160,6 +161,11 @@ const ParishSettingsModal = ({
         setExceptionKeywords(data.exceptionKeywords || []);
         setReportColumns(data.reportColumns || []);
         setResponseStartTime(data.responseStartTime || 'dispatched');
+        setTargetCompliancePercent(
+          data.targetCompliancePercent != null
+            ? data.targetCompliancePercent.toString()
+            : '90'
+        );
       });
 
     // Fetch response zones (includes unassigned locations)
@@ -388,6 +394,7 @@ const ParishSettingsModal = ({
           exceptionKeywords,
           reportColumns,
           responseStartTime,
+          targetCompliancePercent: targetCompliancePercent ? parseFloat(targetCompliancePercent) : 90,
         }),
       });
 
@@ -708,6 +715,48 @@ const ParishSettingsModal = ({
                     <small style={{ color: mutedTextColor, fontSize: '11px', marginTop: '8px', display: 'block' }}>
                       Response time = On Scene Time − Start Time
                     </small>
+                  </div>
+
+                  {/* Target Compliance % */}
+                  <div style={{
+                    padding: '16px',
+                    backgroundColor: cardBgColor,
+                    borderRadius: '8px',
+                    border: `1px solid ${borderColor}`
+                  }}>
+                    <label style={labelStyle}>Target Compliance %</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        step={0.1}
+                        value={targetCompliancePercent}
+                        onChange={(e) => setTargetCompliancePercent(e.target.value)}
+                        placeholder="90"
+                        style={{ ...inputStyle, flex: 1, maxWidth: '120px' }}
+                      />
+                      <span style={{ fontSize: '14px', color: mutedTextColor }}>%</span>
+                    </div>
+                    <small style={{ color: mutedTextColor, fontSize: '11px', marginTop: '8px', display: 'block' }}>
+                      The target compliance percentage for this parish. Dashboard tiles will show red/yellow/green status based on how actual compliance compares to this target.
+                    </small>
+                    <div style={{ marginTop: '12px', padding: '10px', backgroundColor: embedded ? '#f0fdf4' : 'rgba(34, 94, 57, 0.15)', borderRadius: '6px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#22c55e' }}></span>
+                          <span style={{ color: mutedTextColor }}>≥ Target</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#f59e0b' }}></span>
+                          <span style={{ color: mutedTextColor }}>Within 5pts</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#ef4444' }}></span>
+                          <span style={{ color: mutedTextColor }}>&lt; Target−5</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}

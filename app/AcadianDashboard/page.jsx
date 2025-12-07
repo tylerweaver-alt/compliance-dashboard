@@ -1055,7 +1055,7 @@ function Dashboard({ user, onLogout }) {
                     </span>
                   </div>
 
-                  {/* Total calls count - no overall % shown (zones are evaluated differently) */}
+                  {/* Compliance + Total calls with status indicator */}
                   <div className="flex flex-col items-center justify-center">
                     {loading ? (
                       <span className="text-xl font-semibold text-slate-300">...</span>
@@ -1063,8 +1063,27 @@ function Dashboard({ user, onLogout }) {
                       <span className="text-xl font-semibold text-slate-400">N/A</span>
                     ) : hasData ? (
                       <>
-                        <span className="text-xl font-semibold text-slate-900">{parish.totalCalls}</span>
-                        <span className="text-xs text-slate-400">total calls</span>
+                        {/* Compliance with status dot */}
+                        {parish.overall !== null && parish.overall !== undefined && (
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            <span
+                              className="w-2.5 h-2.5 rounded-full"
+                              style={{
+                                backgroundColor:
+                                  parish.overall >= (parish.targetCompliancePercent || 90)
+                                    ? '#22c55e' // green
+                                    : parish.overall >= ((parish.targetCompliancePercent || 90) - 5)
+                                    ? '#f59e0b' // amber
+                                    : '#ef4444', // red
+                              }}
+                            />
+                            <span className="text-lg font-bold text-slate-900">{parish.overall}%</span>
+                          </div>
+                        )}
+                        <span className="text-xs text-slate-500">{parish.totalCalls} calls</span>
+                        {parish.targetCompliancePercent && parish.overall !== null && (
+                          <span className="text-[10px] text-slate-400">Target: {parish.targetCompliancePercent}%</span>
+                        )}
                       </>
                     ) : (
                       <span className="text-sm font-medium text-slate-400">No Data</span>

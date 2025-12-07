@@ -47,6 +47,10 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '../auth/[...nextauth]/route';
 import { logAuditEvent } from '../admin/_audit';
 
+// Auto-Exclusion Engine - Phase 1 Scaffolding
+// TODO: Enable auto-exclusion processing once strategies are fully implemented
+// import { runAutoExclusionsForCall, buildAutoExclusionContext, loadStrategyConfigs } from '@/lib/autoExclusions';
+
 export const runtime = 'nodejs';
 
 // CSV column name to database column mapping
@@ -323,6 +327,35 @@ export async function POST(req: NextRequest) {
 
     const totalProcessed = processed + processedOther;
     console.log(`Upload complete: ${totalProcessed} processed (${processed} contracted + ${processedOther} other), ${errors} errors`);
+
+    // =========================================================================
+    // AUTO-EXCLUSION INTEGRATION POINT (Phase 1 Scaffolding)
+    // =========================================================================
+    // TODO: Once auto-exclusion strategies are fully implemented, enable this:
+    //
+    // 1. Load strategy configs for this region:
+    //    const strategyConfigs = await loadStrategyConfigs(regionId);
+    //
+    // 2. For each inserted call, run auto-exclusion engine:
+    //    const context = buildAutoExclusionContext({
+    //      callId: insertedCallId,
+    //      responseNumber: row['Response Number'],
+    //      responseDateTime: parseDateTime(row['Response Date Time']),
+    //      complianceTimeSeconds: parseComplianceTime(row['Compliance Time']),
+    //      responseArea: row['Response Area'],
+    //      parishId: effectiveParishId,
+    //      regionId: regionId,
+    //      priority: row['Priority'],
+    //    });
+    //    context.strategyConfigs = strategyConfigs;
+    //
+    //    const decision = await runAutoExclusionsForCall(context);
+    //    if (decision.isExcluded) {
+    //      await recordAutoExclusion(insertedCallId, decision);
+    //    }
+    //
+    // NOTE: For performance, consider batch processing after all inserts complete
+    // =========================================================================
 
     // Log audit event for successful upload
     try {

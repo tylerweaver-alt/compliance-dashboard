@@ -25,6 +25,7 @@ function mapRowToSettings(row: any) {
     exceptionKeywords: row.exception_keywords ?? [],
     reportColumns: row.report_columns ?? DEFAULT_REPORT_COLUMNS,
     responseStartTime: row.response_start_time ?? 'dispatched',
+    targetCompliancePercent: row.target_compliance_percent ?? 90.0,
   };
 }
 
@@ -71,7 +72,8 @@ export async function GET(req: NextRequest) {
         coalesce(use_zones, false) as use_zones,
         coalesce(exception_keywords, '{}'::text[]) as exception_keywords,
         report_columns,
-        response_start_time
+        response_start_time,
+        coalesce(target_compliance_percent, 90.0) as target_compliance_percent
       from parish_settings
       where parish_id = $1
       `,
@@ -88,6 +90,7 @@ export async function GET(req: NextRequest) {
         exceptionKeywords: [],
         reportColumns: DEFAULT_REPORT_COLUMNS,
         responseStartTime: 'dispatched',
+        targetCompliancePercent: 90.0,
       });
     }
 
@@ -127,6 +130,7 @@ export async function PUT(req: NextRequest) {
     exceptionKeywords,
     reportColumns,
     responseStartTime,
+    targetCompliancePercent,
   } = body ?? {};
 
   if (!parishId || Number.isNaN(Number(parishId))) {
@@ -188,6 +192,21 @@ export async function PUT(req: NextRequest) {
     ? responseStartTime
     : 'dispatched';
 
+  // Target compliance percent - validate (0-100)
+  const targetComplianceVal =
+    targetCompliancePercent === null ||
+    targetCompliancePercent === undefined ||
+    targetCompliancePercent === ''
+      ? 90.0 // Default to 90%
+      : Number(targetCompliancePercent);
+
+  if (isNaN(targetComplianceVal) || targetComplianceVal < 0 || targetComplianceVal > 100) {
+    return NextResponse.json(
+      { error: 'targetCompliancePercent must be a number between 0 and 100' },
+      { status: 400 }
+    );
+  }
+
   const client = await pool.connect();
   try {
     const upsertRes = await client.query(
@@ -199,8 +218,9 @@ export async function PUT(req: NextRequest) {
         use_zones,
         exception_keywords,
         report_columns,
-        response_start_time
-      ) values ($1, $2, $3, $4, $5, $6, $7)
+        response_start_time,
+        target_compliance_percent
+      ) values ($1, $2, $3, $4, $5, $6, $7, $8)
       on conflict (parish_id)
       do update set
         global_response_threshold_seconds = excluded.global_response_threshold_seconds,
@@ -208,7 +228,8 @@ export async function PUT(req: NextRequest) {
         use_zones = excluded.use_zones,
         exception_keywords = excluded.exception_keywords,
         report_columns = excluded.report_columns,
-        response_start_time = excluded.response_start_time
+        response_start_time = excluded.response_start_time,
+        target_compliance_percent = excluded.target_compliance_percent
       returning
         parish_id,
         global_response_threshold_seconds,
@@ -216,9 +237,10 @@ export async function PUT(req: NextRequest) {
         use_zones,
         exception_keywords,
         report_columns,
-        response_start_time
+        response_start_time,
+        target_compliance_percent
       `,
-      [parishIdInt, thresholdSeconds, targetAvgSeconds, useZonesBool, exceptionArray, reportColumnsArray, responseStartTimeVal]
+      [parishIdInt, thresholdSeconds, targetAvgSeconds, useZonesBool, exceptionArray, reportColumnsArray, responseStartTimeVal, targetComplianceVal]
     );
 
     return NextResponse.json(mapRowToSettings(upsertRes.rows[0]));

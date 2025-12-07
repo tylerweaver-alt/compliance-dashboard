@@ -106,19 +106,20 @@ export async function GET(req: NextRequest) {
     // Default threshold for zones without specific settings
     const defaultThreshold = 10; // minutes
 
-    // Fetch parish-level thresholds as fallbacks
-    const parishThresholdsResult = await client.query(`
-      SELECT parish_id, global_response_threshold_seconds
+    // Fetch parish-level thresholds and target compliance as fallbacks
+    const parishSettingsResult = await client.query(`
+      SELECT parish_id, global_response_threshold_seconds, COALESCE(target_compliance_percent, 90.0) as target_compliance_percent
       FROM parish_settings
-      WHERE global_response_threshold_seconds IS NOT NULL
     `);
 
-    // Build map of parish_id -> threshold in minutes
+    // Build maps of parish_id -> threshold in minutes and target compliance
     const parishThresholds: Record<number, number> = {};
-    for (const row of parishThresholdsResult.rows) {
+    const parishTargetCompliance: Record<number, number> = {};
+    for (const row of parishSettingsResult.rows) {
       if (row.global_response_threshold_seconds) {
         parishThresholds[row.parish_id] = row.global_response_threshold_seconds / 60;
       }
+      parishTargetCompliance[row.parish_id] = parseFloat(row.target_compliance_percent) || 90.0;
     }
 
     // Get threshold for a zone name (tries exact match, then normalized match, then parish fallback)
@@ -177,6 +178,7 @@ export async function GET(req: NextRequest) {
       compliantCalls: number;
       nonCompliantCalls: number;
       excludedCalls: number;
+      targetCompliancePercent: number;
       areas: Array<{ name: string; compliance: number; calls: number }>;
     }> = {};
 
@@ -184,14 +186,16 @@ export async function GET(req: NextRequest) {
     for (const [key, name] of Object.entries(parishNames)) {
       // Find the parish id from the reverse mapping
       const parishId = Object.entries(parishIdToKey).find(([id, k]) => k === key)?.[0];
+      const parishIdNum = parseInt(parishId || '0');
       stats[key] = {
-        id: parseInt(parishId || '0'),
+        id: parishIdNum,
         name,
         overall: key === 'other' ? null : 0,
         totalCalls: 0,
         compliantCalls: 0,
         nonCompliantCalls: 0,
         excludedCalls: 0,
+        targetCompliancePercent: parishTargetCompliance[parishIdNum] ?? 90.0,
         areas: [],
       };
     }
