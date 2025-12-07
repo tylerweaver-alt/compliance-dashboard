@@ -1,7 +1,7 @@
 # Compliance Dashboard
 
-[![CI](https://github.com/your-org/compliance-dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/your-org/compliance-dashboard/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/your-org/compliance-dashboard/actions/workflows/codeql.yml/badge.svg)](https://github.com/your-org/compliance-dashboard/actions/workflows/codeql.yml)
+[![CI](https://github.com/tylerweaver-alt/compliance-dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/tylerweaver-alt/compliance-dashboard/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/tylerweaver-alt/compliance-dashboard/actions/workflows/codeql.yml/badge.svg)](https://github.com/tylerweaver-alt/compliance-dashboard/actions/workflows/codeql.yml)
 
 Internal EMS compliance dashboard for tracking response metrics across parishes and zones.
 
