@@ -120,8 +120,22 @@ export async function GET(req: NextRequest) {
         assigned_to_arrived_at_scene,
         call_in_queue_to_cleared_call_lag,
         compliance_time,
-        raw_row
-      from calls
+        raw_row,
+
+        -- exclusion fields
+        is_excluded,
+        exclusion_reason,
+        is_auto_excluded,
+        auto_exclusion_reason,
+        auto_exclusion_strategy,
+        is_any_excluded,
+        is_weather_excluded,
+
+        -- compliance field (computed from response time vs threshold)
+        is_out_of_compliance,
+        response_time_minutes,
+        applicable_threshold_minutes
+      from calls_with_exclusions
       where ${whereClauses.join(' and ')}
       order by
         -- most recent first by interpreted date, fallback to id

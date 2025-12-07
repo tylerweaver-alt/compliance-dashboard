@@ -6,11 +6,13 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "fetch:nws": "npx ts-node scripts/fetchNwsAlerts.ts"
   },
   "dependencies": {
     "@sentry/nextjs": "^10.29.0",
     "@sentry/react": "^10.29.0",
+    "@turf/turf": "^7.3.1",
     "@types/pg": "^8.15.6",
     "@vercel/blob": "^2.0.0",
     "csv-parse": "^6.1.0",
@@ -35,6 +37,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.0.3",
     "tailwindcss": "^4",
+    "ts-node": "^10.9.2",
     "typescript": "^5"
   }
 }

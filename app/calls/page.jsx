@@ -88,6 +88,100 @@ function BreakdownItem({ label, value, isPercentage = false, highlight = false }
 }
 
 // Exclusion Modal
+// Weather Exclusion Details Modal - shows weather alert info for auto-excluded calls
+function WeatherExclusionModal({ isOpen, onClose, callId }) {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [data, setData] = useState(null);
+
+  useEffect(() => {
+    if (isOpen && callId) {
+      setLoading(true);
+      setError(null);
+      fetch(`/api/calls/${callId}/weather-matches`)
+        .then(res => res.json())
+        .then(json => {
+          if (json.error) throw new Error(json.error);
+          setData(json);
+        })
+        .catch(err => setError(err.message))
+        .finally(() => setLoading(false));
+    }
+  }, [isOpen, callId]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl p-6 max-w-lg w-full mx-4 shadow-2xl">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-bold text-slate-800">Weather Exclusion Details</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {loading && (
+          <div className="py-8 text-center text-slate-500">Loading weather data...</div>
+        )}
+
+        {error && (
+          <div className="py-4 text-center text-red-600">{error}</div>
+        )}
+
+        {!loading && !error && data && (
+          <div className="space-y-4">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <p className="text-sm text-blue-800">
+                {data.call.auto_exclusion_reason || 'Call excluded due to overlapping NWS weather alert.'}
+              </p>
+            </div>
+
+            {data.weatherMatches && data.weatherMatches.length > 0 ? (
+              <div className="space-y-3">
+                <h4 className="text-sm font-semibold text-slate-700">Matching Weather Alerts:</h4>
+                {data.weatherMatches.map((wm, idx) => (
+                  <div key={idx} className="border border-slate-200 rounded-lg p-3 bg-slate-50">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className={`px-2 py-0.5 text-xs rounded-full ${
+                        wm.weather_severity === 'Severe'
+                          ? 'bg-red-100 text-red-800'
+                          : wm.weather_severity === 'Moderate'
+                          ? 'bg-amber-100 text-amber-800'
+                          : 'bg-blue-100 text-blue-800'
+                      }`}>
+                        {wm.weather_severity}
+                      </span>
+                      <span className="font-medium text-slate-800">{wm.weather_event_type}</span>
+                    </div>
+                    <p className="text-xs text-slate-600 mb-1">{wm.weather_area_desc}</p>
+                    <p className="text-xs text-slate-500">
+                      Overlap: {new Date(wm.overlap_start).toLocaleString()} – {new Date(wm.overlap_end).toLocaleString()}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500">No weather alert details available.</p>
+            )}
+          </div>
+        )}
+
+        <div className="mt-6 text-right">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ExclusionModal({ isOpen, onClose, onExclude, callId }) {
   const [selectedReason, setSelectedReason] = useState('');
 
@@ -238,10 +332,16 @@ const ALL_COLUMNS = {
   assigned_to_arrived_at_scene: { label: 'Assigned to Arrived', getValue: (call) => call.assigned_to_arrived_at_scene || '—' },
   call_in_queue_to_cleared_call_lag: { label: 'Queue to Cleared', getValue: (call) => call.call_in_queue_to_cleared_call_lag || '—' },
   compliance_time: { label: 'Compliance Time', getValue: (call) => call.compliance_time || '—' },
+
+  // Exclusion status column
+  exclusion_status: {
+    label: 'Exclusion',
+    isExclusionStatus: true,
+  },
 };
 
-// Default columns: Date, Call#, Unit, Address, Received, Dispatched, Enroute, Staged, On Scene, Depart, Arrived, Available, Response, Status
-const DEFAULT_COLUMNS = ['date', 'call_number', 'unit', 'address', 'received', 'dispatched', 'enroute', 'staged', 'on_scene', 'depart', 'arrived', 'available', 'response', 'status'];
+// Default columns: Date, Call#, Unit, Address, Received, Dispatched, Enroute, Staged, On Scene, Depart, Arrived, Available, Response, Status, Exclusion
+const DEFAULT_COLUMNS = ['date', 'call_number', 'unit', 'address', 'received', 'dispatched', 'enroute', 'staged', 'on_scene', 'depart', 'arrived', 'available', 'response', 'status', 'exclusion_status'];
 
 function CallsPageContent() {
   const searchParams = useSearchParams();
@@ -255,6 +355,8 @@ function CallsPageContent() {
   const [selectedZone, setSelectedZone] = useState('all');
   const [zones, setZones] = useState([]);
   const [exclusionModal, setExclusionModal] = useState({ open: false, callId: null });
+  const [weatherModal, setWeatherModal] = useState({ open: false, callId: null });
+  const [exclusionFilter, setExclusionFilter] = useState('all'); // 'all' | 'included' | 'excluded'
 
   // Editable response time state
   const [editingResponseTime, setEditingResponseTime] = useState(null); // { callId, minutes }
@@ -437,6 +539,13 @@ function CallsPageContent() {
     ? calls
     : calls.filter(c => c.response_area === selectedZone);
 
+  // Filter by exclusion status
+  const exclusionFilteredCalls = zoneFilteredCalls.filter(c => {
+    if (exclusionFilter === 'included') return !c.is_any_excluded;
+    if (exclusionFilter === 'excluded') return c.is_any_excluded;
+    return true; // 'all'
+  });
+
   // =====================================================================
   // DEDUPLICATION LOGIC: Handle AirMed (AMx) and racing units
   // =====================================================================
@@ -546,7 +655,7 @@ function CallsPageContent() {
   };
 
   // Apply deduplication
-  const filteredCalls = deduplicateCalls(zoneFilteredCalls);
+  const filteredCalls = deduplicateCalls(exclusionFilteredCalls);
 
   // Only count calls where we made it to the scene (have arrived_at_scene_time)
   const sceneArrivedCalls = filteredCalls.filter(c => c.arrived_at_scene_time);
@@ -1069,11 +1178,47 @@ function CallsPageContent() {
         {/* Calls Table - Priority 1-3 calls that arrived at scene */}
         {/* When "All Zones" selected, sort by zone then date; otherwise use normal order */}
         <div className="bg-white rounded-xl overflow-hidden shadow-sm border border-slate-200 print:shadow-none print:border-0">
-          <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between print:py-2">
+          <div className="px-6 py-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 print:py-2">
             <h2 className="text-lg font-semibold text-slate-700 print:text-base">
               Call Details (Priority 1-3){selectedZone === 'all' && zones.length > 0 ? ' - All Response Zones' : ''}
             </h2>
-            <span className="text-sm text-slate-500 print:text-base print:font-bold print:text-slate-800">{complianceCalls.length} calls</span>
+            <div className="flex items-center gap-3 print:hidden">
+              {/* Exclusion Filter Toggle */}
+              <div className="flex gap-1 bg-slate-100 p-0.5 rounded-lg">
+                <button
+                  onClick={() => setExclusionFilter('all')}
+                  className={`px-3 py-1 text-xs rounded-md transition-all ${
+                    exclusionFilter === 'all'
+                      ? 'bg-white text-slate-800 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-800'
+                  }`}
+                >
+                  All
+                </button>
+                <button
+                  onClick={() => setExclusionFilter('included')}
+                  className={`px-3 py-1 text-xs rounded-md transition-all ${
+                    exclusionFilter === 'included'
+                      ? 'bg-white text-green-700 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-800'
+                  }`}
+                >
+                  Included
+                </button>
+                <button
+                  onClick={() => setExclusionFilter('excluded')}
+                  className={`px-3 py-1 text-xs rounded-md transition-all ${
+                    exclusionFilter === 'excluded'
+                      ? 'bg-white text-amber-700 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-800'
+                  }`}
+                >
+                  Excluded
+                </button>
+              </div>
+              <span className="text-sm text-slate-500">{complianceCalls.length} calls</span>
+            </div>
+            <span className="text-sm text-slate-500 hidden print:block print:font-bold print:text-slate-800">{complianceCalls.length} calls</span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-xs calls-table">
@@ -1185,6 +1330,36 @@ function CallsPageContent() {
                           );
                         }
 
+                        // Exclusion status column
+                        if (col.isExclusionStatus) {
+                          return (
+                            <td key={colId} className="px-1 py-0.5 whitespace-nowrap">
+                              {call.is_any_excluded ? (
+                                call.is_weather_excluded ? (
+                                  <button
+                                    onClick={() => setWeatherModal({ open: true, callId: call.id })}
+                                    className="px-2 py-0.5 text-[9px] rounded-full bg-blue-100 text-blue-800 border border-blue-300 hover:bg-blue-200 cursor-pointer"
+                                    title="Click to view weather alert details"
+                                  >
+                                    Weather ⓘ
+                                  </button>
+                                ) : (
+                                  <span
+                                    className="px-2 py-0.5 text-[9px] rounded-full bg-amber-100 text-amber-800 border border-amber-300"
+                                    title={call.exclusion_reason ?? "Excluded"}
+                                  >
+                                    Excluded
+                                  </span>
+                                )
+                              ) : (
+                                <span className="px-2 py-0.5 text-[9px] rounded-full bg-green-100 text-green-800 border border-green-300">
+                                  Included
+                                </span>
+                              )}
+                            </td>
+                          );
+                        }
+
                         // Regular columns
                         const value = col.getValue(call, parseTimeOnly, parseCallNumber);
                         // For address column, add title tooltip with full address
@@ -1229,6 +1404,13 @@ function CallsPageContent() {
         callId={exclusionModal.callId}
         onClose={() => setExclusionModal({ open: false, callId: null })}
         onExclude={handleExclude}
+      />
+
+      {/* Weather Exclusion Details Modal */}
+      <WeatherExclusionModal
+        isOpen={weatherModal.open}
+        callId={weatherModal.callId}
+        onClose={() => setWeatherModal({ open: false, callId: null })}
       />
     </div>
   );

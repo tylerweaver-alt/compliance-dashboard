@@ -269,8 +269,20 @@ export async function GET(req: NextRequest) {
         assigned_to_arrived_at_scene,
         call_in_queue_to_cleared_call_lag,
 
-        is_excluded
-      from calls
+        -- exclusion fields
+        is_excluded,
+        exclusion_reason,
+        is_auto_excluded,
+        auto_exclusion_reason,
+        auto_exclusion_strategy,
+        is_any_excluded,
+        is_weather_excluded,
+
+        -- compliance field (computed from response time vs threshold)
+        is_out_of_compliance,
+        response_time_minutes,
+        applicable_threshold_minutes
+      from calls_with_exclusions
       where ${whereSql}
       order by
         to_date(response_date, 'MM/DD/YYYY') desc nulls last,
