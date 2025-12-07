@@ -84,3 +84,33 @@ compliance-dashboard/
 ## Dynamic routes
 - Route segments under `app/` provide page-level navigation (dashboard, parish reports, uploads).
 - API routes under `app/api/` are organized by resource; URL shapes are stable to avoid breaking clients.
+
+## Performance & Scaling Considerations
+
+### Connection Pooling
+- `lib/db.ts` uses a single `pg.Pool` instance shared across all API routes.
+- Each request acquires a connection from the pool and releases it after the query completes.
+- Pool size should be tuned based on Neon plan limits and expected concurrent connections.
+
+### Database Optimization
+- **Indexes**: Key tables (`calls`, `parish_uploads`, `audit_logs`) should have indexes on:
+  - `parish_id` for partition-like filtering
+  - `response_date` / `response_date_time` for date range queries
+  - Composite indexes on `(parish_id, response_date)` for common queries
+- **Query patterns**: Avoid N+1 queries; use JOINs or batch fetches where possible.
+- **PostGIS**: Geometry columns use GIST indexes for spatial queries.
+
+### Caching Strategy
+- Currently no aggressive edge caching for authenticated data.
+- Static assets are cached via Vercel CDN.
+- Future: Consider Redis/Edge Config for frequently-accessed parish settings.
+
+### Data Retention (TODO)
+- Implement retention policy for old call data.
+- Archive or aggregate data older than retention threshold.
+- Consider partitioning `calls` table by date range.
+
+### Monitoring
+- Sentry integration for error tracking and performance monitoring.
+- Health check endpoint at `/api/health` for uptime monitoring.
+- Audit logs capture sensitive operations for security review.

@@ -1,0 +1,219 @@
+# CADalytix™ Enterprise Software License Agreement
+© 2025 CADalytix, LLC. All Rights Reserved.
+
+This Enterprise Software License Agreement (“Agreement”) applies to the installation,
+execution, access, deployment, integration, or any use of the CADalytix Compliance,
+Analytics, Operational Intelligence, and Reporting Platform (“Software”), developed
+and owned exclusively by CADalytix, LLC.
+
+By using the Software, the Licensee expressly agrees to all terms contained herein.
+
+---
+
+## 1. Ownership of Intellectual Property
+
+The Software—including but not limited to all source code, data models, schemas,
+algorithms, exclusion logic, predictive analytics engines, dashboards, UI/UX
+components, processes, documentation, data transformations, workflow automation, and
+derivative innovations—is the exclusive property of:
+
+**CADalytix, LLC**  
+Founders / Codeowners:  
+- **Tyler Weaver** (tylerkweaver20@gmail.com)  
+- **Jake Chaumont** (jrc7192@gmail.com)  
+- **Christian Dennis** (cdennis@gmail.com)
+
+No rights, title, or interest are transferred to the Licensee under this Agreement.
+
+**Primary Partner (Licensure Pending):** Acadian Companies
+
+---
+
+## 1A. Acknowledgment of Ownership and Non-Challenge Clause
+
+By installing, accessing, deploying, or using this Next.js Software product, the
+Licensee expressly agrees that:
+
+1. The Software is **not** the property of the Licensee in any form or fashion.
+2. The Licensee acquires **no ownership**, **no intellectual property rights**, and
+   **no derivative rights**.
+3. The Licensee shall **not challenge or dispute** the ownership, authorship, rights,
+   or control of CADalytix or its Founders **now or at any time in the future**.
+4. The Licensee shall not degrade, damage, alter, modify, disable, or otherwise
+   negatively impact CADalytix’s control, commercial use, perpetual rights, product
+   roadmap, strategic opportunities, or investor interests.
+5. These obligations apply **in perpetuity**, **forever**, and survive termination of
+   this Agreement unless superseded by a written amendment signed by **all three
+   Founders**, notarized, and validated by a court of competent jurisdiction in the
+   State of Louisiana.
+
+Any violation constitutes immediate termination of all License rights.
+
+---
+
+## 2. Grant of License
+
+CADalytix grants a **non-exclusive, non-transferable, revocable enterprise license**
+to:
+
+- Deploy the Software internally  
+- Allow authorized personnel to access dashboards and analytics  
+- Generate reports for internal operational use  
+
+This License **does not permit**:
+
+- Resale or sublicensing  
+- Modification or creation of derivative works  
+- Reverse engineering  
+- Hosting the Software as a third-party service  
+- Integration with CAD, ESO, Visinet, or external systems without prior written
+  approval from CADalytix  
+
+All rights not expressly provided are reserved.
+
+---
+
+## 3. Restrictions
+
+Licensee may NOT:
+
+1. Remove or obscure CADalytix branding or attribution.
+2. Reverse engineer, disassemble, or derive the source logic.
+3. Create derivative systems using CADalytix IP.
+4. Assist competitors in replicating the Software.
+5. Share the Software with third parties without written authorization.
+6. Bypass authentication, role controls, or licensing mechanisms.
+7. Attempt to assert competing copyrights, patents, or ownership claims.
+
+---
+
+## 4. Term & Termination
+
+This License remains active until:
+
+- Terminated by CADalytix, LLC  
+- Licensee breaches any clause  
+- Licensee ceases payment  
+
+Upon termination, Licensee must immediately:
+
+- Disable all deployments  
+- Destroy all copies  
+- Remove system access  
+- Certify compliance within 10 business days  
+
+---
+
+## 5. Licensing Fees & Payment
+
+Use of the Software requires an active paid license unless otherwise established
+through a Commercial Licensing Agreement.
+
+Licensing models may include:
+
+- Annual enterprise license  
+- Per-parish or per-region pricing  
+- Per-call usage pricing  
+- Hybrid subscription + overage models  
+
+Failure to maintain payment voids the License.
+
+---
+
+## 6. Confidentiality
+
+The Software and all associated proprietary logic constitute CADalytix trade secrets.
+Licensee agrees to strict confidentiality and limited internal access.
+
+This obligation is permanent and survives termination indefinitely.
+
+---
+
+## 7. Warranty Disclaimer
+
+The Software is provided **“AS-IS”** with no warranty of any kind.
+
+CADalytix does not guarantee:
+
+- Uptime  
+- Accuracy  
+- Fitness for any operational purpose  
+- Financial or compliance outcomes  
+
+Licensee assumes full responsibility for all operational decisions arising from use of
+the Software.
+
+---
+
+## 8. Limitation of Liability
+
+CADalytix, LLC and its Founders shall not be liable for:
+
+- Operational impacts  
+- Contract penalties  
+- QA errors  
+- Reporting discrepancies  
+- Financial losses  
+- Data corruption  
+- System downtime  
+- Regulatory impacts  
+- Any direct, indirect, incidental, or consequential damages  
+
+Maximum liability is strictly limited to the License fee paid in the previous
+12 months.
+
+---
+
+## 8A. Comprehensive Release of Liability (Extended)
+
+By using the Software, Licensee irrevocably:
+
+1. Releases CADalytix, LLC, and its Founders from **any and all liability**.
+2. Waives the right to pursue legal action against CADalytix, the Founders, or
+   investors for any issue whatsoever.
+3. Waives all claims relating to operational decisions, penalties, outages, errors,
+   downtime, or damages.
+4. Accepts full responsibility for reliance on the Software’s outputs.
+
+This release survives termination and remains binding **forever**.
+
+---
+
+## 9. Indemnification
+
+Licensee shall fully indemnify CADalytix, LLC and its Founders from:
+
+- Damages  
+- Claims  
+- Penalties  
+- Lawsuits  
+- Third-party actions  
+
+arising from the Licensee’s use or misuse of the Software.
+
+---
+
+## 10. Governing Law
+
+This Agreement is governed exclusively by the laws of the **State of Louisiana**.
+
+---
+
+## 11. Entire Agreement
+
+This document constitutes the full Agreement between the parties unless superseded by
+a written, signed, court-validated amendment.
+
+---
+
+## 12. Contact
+
+**CADalytix, LLC**  
+Founders:  
+- Tyler Weaver — *tylerkweaver20@gmail.com*  
+- Jake Chaumont — *jrc7192@gmail.com*  
+- Christian Dennis — *cdennis@gmail.com*
+
+Primary Partner (Licensure Pending): **Acadian Companies**
+
+© 2025 CADalytix. All Rights Reserved.

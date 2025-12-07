@@ -1,0 +1,37 @@
+# CODEOWNERS - Defines code owners for review requirements
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owners for everything in the repo
+# Replace with actual GitHub usernames/teams
+* @your-org/compliance-team
+
+# Core application logic
+/app/api/** @your-org/backend-team @your-org/compliance-team
+/lib/** @your-org/backend-team @your-org/compliance-team
+
+# Database layer - requires senior review
+/lib/db.ts @your-org/backend-leads
+/db/** @your-org/backend-leads
+
+# Security-sensitive files
+/middleware.ts @your-org/security-team @your-org/backend-leads
+/app/api/auth/** @your-org/security-team
+SECURITY.md @your-org/security-team
+
+# CI/CD and GitHub configuration
+/.github/** @your-org/devops-team @your-org/backend-leads
+
+# Documentation
+/docs/** @your-org/compliance-team
+README.md @your-org/compliance-team
+CONTRIBUTING.md @your-org/compliance-team
+
+# Frontend components
+/app/components/** @your-org/frontend-team @your-org/compliance-team
+/app/AcadianDashboard/** @your-org/frontend-team
+/app/AcadianIntelligence/** @your-org/frontend-team
+
+# Configuration files
+*.config.* @your-org/devops-team
+tsconfig.json @your-org/backend-leads
+

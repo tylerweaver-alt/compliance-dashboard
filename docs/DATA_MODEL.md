@@ -60,5 +60,39 @@ SQL migration scripts are located in `db/migrations/`:
 - `target_compliance.sql` - Target compliance % on parish_settings
 - `audit_logs.sql` - Audit log table structure
 
+## Indexing Strategy
+
+### Recommended Indexes
+
+| Table | Columns | Type | Purpose |
+|-------|---------|------|---------|
+| `calls` | `parish_id` | B-tree | Filter by parish |
+| `calls` | `response_date` | B-tree | Date range queries |
+| `calls` | `(parish_id, response_date)` | Composite | Common dashboard queries |
+| `calls` | `is_compliant` | B-tree | Compliance filtering |
+| `calls` | `is_excluded` | B-tree | Exclusion filtering |
+| `parish_uploads` | `parish_id` | B-tree | Filter uploads by parish |
+| `parish_uploads` | `data_month, data_year` | Composite | Period filtering |
+| `audit_logs` | `actor_user_id` | B-tree | User activity queries |
+| `audit_logs` | `created_at` | B-tree | Time-based queries |
+| `response_area_mappings` | `parish_id` | B-tree | Zone lookup |
+
+### PostGIS Indexes
+- Geometry columns should use GIST indexes for spatial queries.
+- Example: `CREATE INDEX ON calls USING GIST (origin_geometry);`
+
+## Performance Considerations
+
+- **Query patterns**: Most queries filter by `parish_id` and date range.
+- **Avoid N+1**: Use JOINs or batch queries when fetching related data.
+- **Connection pooling**: Always use the shared pool from `lib/db.ts`.
+- **Large datasets**: Consider pagination for `/api/calls` responses.
+
+## Data Retention (TODO)
+
+- Define retention policy for historical call data.
+- Consider partitioning `calls` table by year/month.
+- Implement archival process for data beyond retention period.
+
 ## Notes
 - Exact schema definitions, constraints, and indexes are not included in the repository; consult the database migrations or inspect the Neon instance directly for full details.
