@@ -14,8 +14,9 @@
 // ============================================================================
 // Each strategy has a unique key for identification and configuration lookup
 
-export type AutoExclusionStrategyKey = 
+export type AutoExclusionStrategyKey =
   | 'PEAK_LOAD'      // Multiple calls in same area within time window
+  | 'PEAK_CALL_LOAD' // 3+ calls in same parish within 45-min window (position-based)
   | 'WEATHER'        // Severe weather events affecting response times
   | 'CAD_OUTAGE';    // CAD system outages affecting dispatch accuracy
 
@@ -56,6 +57,12 @@ export interface StrategyConfig {
   strategyKey: AutoExclusionStrategyKey;
   isEnabled: boolean;
   config: Record<string, any>;  // Strategy-specific settings (thresholds, etc.)
+}
+
+// Strategy-specific config types
+export interface PeakCallLoadConfig {
+  window_minutes: number;       // Sliding window size (default: 45)
+  min_calls_threshold: number;  // Minimum calls in window (default: 3)
 }
 
 // ============================================================================

@@ -22,11 +22,16 @@ export async function middleware(request: NextRequest) {
   }
 
   // Default-protect all API routes except a narrow allowlist
-  const allowedApiPrefixes = ['/api/auth', '/api/health'];
+  // NOTE: /api/cron is allowed through because it uses its own CRON_SECRET auth
+  const allowedApiPrefixes = ['/api/auth', '/api/health', '/api/cron'];
   const isApiRoute = pathname.startsWith('/api/');
   const isAllowedApi = allowedApiPrefixes.some((prefix) => pathname.startsWith(prefix));
 
-  if (isApiRoute && !isAllowedApi) {
+  if (isApiRoute) {
+    if (isAllowedApi) {
+      // Allowed APIs handle their own auth (e.g., /api/cron uses CRON_SECRET)
+      return NextResponse.next();
+    }
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

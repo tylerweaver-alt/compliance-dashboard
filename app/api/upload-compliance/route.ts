@@ -46,10 +46,7 @@ async function parseCSV(content: string, options?: { relax_column_count?: boolea
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../auth/[...nextauth]/route';
 import { logAuditEvent } from '../admin/_audit';
-
-// Auto-Exclusion Engine - Phase 1 Scaffolding
-// TODO: Enable auto-exclusion processing once strategies are fully implemented
-// import { runAutoExclusionsForCall, buildAutoExclusionContext, loadStrategyConfigs } from '@/lib/autoExclusions';
+import { triggerBatchAsyncEvaluation } from '@/lib/autoExclusions';
 
 export const runtime = 'nodejs';
 
@@ -260,13 +257,23 @@ export async function POST(req: NextRequest) {
     let batchProcessed = 0;
     let batchProcessedOther = 0;
 
+    // Track inserted call IDs for auto-exclusion processing
+    const insertedCallIds: number[] = [];
+
     // Helper function to flush the current batch
     const flushBatch = async () => {
       if (batchPlaceholders.length === 0) return;
 
       try {
-        const insertQuery = `INSERT INTO calls (${fixedDbColumns.join(', ')}) VALUES ${batchPlaceholders.join(', ')}`;
-        await query(insertQuery, batchValues);
+        // Use RETURNING id to get inserted call IDs for auto-exclusion processing
+        const insertQuery = `INSERT INTO calls (${fixedDbColumns.join(', ')}) VALUES ${batchPlaceholders.join(', ')} RETURNING id`;
+        const result = await query<{ id: number }>(insertQuery, batchValues);
+
+        // Collect inserted IDs for auto-exclusion
+        for (const row of result.rows) {
+          insertedCallIds.push(row.id);
+        }
+
         processed += batchProcessed;
         processedOther += batchProcessedOther;
       } catch (batchError: any) {
@@ -329,33 +336,16 @@ export async function POST(req: NextRequest) {
     console.log(`Upload complete: ${totalProcessed} processed (${processed} contracted + ${processedOther} other), ${errors} errors`);
 
     // =========================================================================
-    // AUTO-EXCLUSION INTEGRATION POINT (Phase 1 Scaffolding)
+    // AUTO-EXCLUSION: Trigger async evaluation for all inserted calls
     // =========================================================================
-    // TODO: Once auto-exclusion strategies are fully implemented, enable this:
-    //
-    // 1. Load strategy configs for this region:
-    //    const strategyConfigs = await loadStrategyConfigs(regionId);
-    //
-    // 2. For each inserted call, run auto-exclusion engine:
-    //    const context = buildAutoExclusionContext({
-    //      callId: insertedCallId,
-    //      responseNumber: row['Response Number'],
-    //      responseDateTime: parseDateTime(row['Response Date Time']),
-    //      complianceTimeSeconds: parseComplianceTime(row['Compliance Time']),
-    //      responseArea: row['Response Area'],
-    //      parishId: effectiveParishId,
-    //      regionId: regionId,
-    //      priority: row['Priority'],
-    //    });
-    //    context.strategyConfigs = strategyConfigs;
-    //
-    //    const decision = await runAutoExclusionsForCall(context);
-    //    if (decision.isExcluded) {
-    //      await recordAutoExclusion(insertedCallId, decision);
-    //    }
-    //
-    // NOTE: For performance, consider batch processing after all inserts complete
+    // This fires off the auto-exclusion engine in the background.
+    // The response returns immediately - evaluation happens asynchronously.
+    // Any calls missed here will be caught by the daily cron safety net.
     // =========================================================================
+    if (insertedCallIds.length > 0) {
+      console.log(`[AutoExclusion] Triggering async evaluation for ${insertedCallIds.length} calls`);
+      triggerBatchAsyncEvaluation(insertedCallIds);
+    }
 
     // Log audit event for successful upload
     try {

@@ -69,3 +69,22 @@ export {
   loadStrategyConfigs,
 } from './db';
 
+// Runner - High-level processing functions
+export {
+  processSingleCall,
+  processCallsForAutoExclusion,
+  processUnevaluatedCalls,
+  getUnevaluatedCallCount,
+} from './runner';
+
+export type {
+  ProcessedCallResult,
+  BatchProcessingResult,
+} from './runner';
+
+// Async - Fire-and-forget evaluation helpers
+export {
+  triggerAsyncEvaluation,
+  triggerBatchAsyncEvaluation,
+} from './async';
+

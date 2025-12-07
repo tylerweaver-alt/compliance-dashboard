@@ -7,12 +7,14 @@
 
 import type { AutoExclusionStrategy, AutoExclusionStrategyKey } from '../types';
 import { peakLoadStrategy } from './peakLoad';
+import { peakCallLoadStrategy } from './peakCallLoad';
 import { weatherStrategy } from './weather';
 import { cadOutageStrategy } from './cadOutage';
 
 // All registered strategies
 export const strategies: AutoExclusionStrategy[] = [
   peakLoadStrategy,
+  peakCallLoadStrategy,
   weatherStrategy,
   cadOutageStrategy,
 ];
@@ -34,6 +36,7 @@ export function getStrategyKeys(): AutoExclusionStrategyKey[] {
 
 // Re-export individual strategies for direct import
 export { peakLoadStrategy } from './peakLoad';
+export { peakCallLoadStrategy } from './peakCallLoad';
 export { weatherStrategy } from './weather';
 export { cadOutageStrategy } from './cadOutage';
 

@@ -43,21 +43,26 @@ export async function recordAutoExclusion(
   }
   
   const now = new Date();
-  
-  // 1. Update calls table with auto-exclusion fields
+
+  // 1. Update calls table with UNIFIED exclusion columns + legacy auto columns
   await query(
     `UPDATE calls SET
-      is_auto_excluded = $1,
-      auto_exclusion_strategy = $2,
-      auto_exclusion_reason = $3,
-      auto_excluded_at = $4,
-      auto_exclusion_metadata = $5
-    WHERE id = $6`,
+      -- Unified columns (for clean queries)
+      is_excluded = TRUE,
+      exclusion_type = 'AUTO',
+      exclusion_reason = $1,
+      excluded_at = $2,
+      -- Legacy auto columns (for backward compatibility & detailed reporting)
+      is_auto_excluded = TRUE,
+      auto_exclusion_strategy = $3,
+      auto_exclusion_reason = $1,
+      auto_excluded_at = $2,
+      auto_exclusion_metadata = $4
+    WHERE id = $5`,
     [
-      true,
-      decision.primaryStrategy,
       decision.reason,
       now,
+      decision.primaryStrategy,
       JSON.stringify(decision.metadata),
       callId,
     ]

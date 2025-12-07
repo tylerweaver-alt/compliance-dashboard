@@ -75,10 +75,11 @@ export async function recordManualExclusion(
 
   const now = new Date();
 
-  // 1. Update calls table
+  // 1. Update calls table with unified columns
   await query(
     `UPDATE calls SET
       is_excluded = TRUE,
+      exclusion_type = 'MANUAL',
       exclusion_reason = $1,
       excluded_at = $2,
       excluded_by_user_id = $3

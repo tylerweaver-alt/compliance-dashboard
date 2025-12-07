@@ -626,9 +626,28 @@ function EditTimeModal({ isOpen, onClose, callId, field, fieldLabel, currentValu
   );
 }
 
-// Audit Log Panel Component - Shows time edits grouped by call (compact, print-friendly)
-function AuditLogPanel({ callEdits, isOpen }) {
-  if (!isOpen || !callEdits || callEdits.length === 0) return null;
+// Audit Log Panel Component - Shows time edits and exclusions (manual + auto)
+function AuditLogPanel({ callEdits, autoExclusions, isOpen }) {
+  // Merge time edits and exclusions into a single list
+  const allEntries = [];
+
+  // Add time edit entries (type: 'time_edit')
+  if (callEdits && callEdits.length > 0) {
+    callEdits.forEach(item => {
+      allEntries.push({ ...item, entryType: 'time_edit' });
+    });
+  }
+
+  // Add exclusion entries (both manual and auto - from unified endpoint)
+  if (autoExclusions && autoExclusions.length > 0) {
+    autoExclusions.forEach(item => {
+      // Determine entry type based on exclusion.type
+      const exclusionType = item.exclusion?.type === 'MANUAL' ? 'manual_exclusion' : 'auto_exclusion';
+      allEntries.push({ ...item, entryType: exclusionType });
+    });
+  }
+
+  if (!isOpen || allEntries.length === 0) return null;
 
   const formatDateTime = (isoString) => {
     if (!isoString) return '—';
@@ -645,61 +664,134 @@ function AuditLogPanel({ callEdits, isOpen }) {
     return parts.length > 1 ? parts[1] : dateTimeStr;
   };
 
+  // Count by type for header
+  const timeEditCount = callEdits?.length || 0;
+  const autoExclusionCount = allEntries.filter(e => e.entryType === 'auto_exclusion').length;
+  const manualExclusionCount = allEntries.filter(e => e.entryType === 'manual_exclusion').length;
+
   return (
     <div className="print:break-before-page audit-log-print">
       {/* Header */}
       <div className="audit-log-header px-4 py-2 border-b border-slate-300 bg-slate-100">
         <h2 className="text-sm font-semibold text-slate-700 text-center underline decoration-1 decoration-slate-400 underline-offset-2">
-          Time Edit Audit Log — {callEdits.length} call(s)
+          Audit Log — {allEntries.length} item(s)
+          <span className="text-slate-500 font-normal ml-2">
+            ({timeEditCount > 0 ? `${timeEditCount} time edit${timeEditCount !== 1 ? 's' : ''}` : ''}
+            {timeEditCount > 0 && (manualExclusionCount > 0 || autoExclusionCount > 0) ? ', ' : ''}
+            {manualExclusionCount > 0 ? `${manualExclusionCount} manual exclusion${manualExclusionCount !== 1 ? 's' : ''}` : ''}
+            {manualExclusionCount > 0 && autoExclusionCount > 0 ? ', ' : ''}
+            {autoExclusionCount > 0 ? `${autoExclusionCount} auto-exclusion${autoExclusionCount !== 1 ? 's' : ''}` : ''})
+          </span>
         </h2>
       </div>
 
-      {/* Compact Call List */}
+      {/* Merged Call List */}
       <div className="divide-y divide-slate-200">
-        {callEdits.map((callData) => (
-          <div key={callData.callId} className="bg-white">
-            {/* Thin Call Header - Same on screen and print */}
-            <div className="audit-log-call-header bg-slate-300 text-slate-900 px-3 py-1.5 flex items-center justify-between text-xs border-b border-slate-400">
+        {allEntries.map((callData) => {
+          const isManualExclusion = callData.entryType === 'manual_exclusion';
+          const isAutoExclusion = callData.entryType === 'auto_exclusion';
+          const isExclusion = isManualExclusion || isAutoExclusion;
+
+          return (
+          <div key={`${callData.entryType}-${callData.callId}`} className="bg-white">
+            {/* Call Header - different styling for auto vs others */}
+            <div className={`audit-log-call-header text-slate-900 px-3 py-1.5 flex items-center justify-between text-xs border-b border-slate-400 ${
+              isAutoExclusion ? 'bg-red-200' : 'bg-slate-300'
+            }`}>
               <div className="flex items-center gap-4">
+                {/* Gear icon for auto-exclusions */}
+                {isAutoExclusion && (
+                  <svg className="w-5 h-5 text-slate-700" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 15.5A3.5 3.5 0 0 1 8.5 12 3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.53c.04-.32.07-.64.07-.97 0-.33-.03-.66-.07-1l2.11-1.63c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.31-.61-.22l-2.49 1c-.52-.39-1.06-.73-1.69-.98l-.37-2.65A.506.506 0 0 0 14 2h-4c-.25 0-.46.18-.5.42l-.37 2.65c-.63.25-1.17.59-1.69.98l-2.49-1c-.22-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64L4.57 11c-.04.34-.07.67-.07 1 0 .33.03.65.07.97l-2.11 1.66c-.19.15-.25.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1.01c.52.4 1.06.74 1.69.99l.37 2.65c.04.24.25.42.5.42h4c.25 0 .46-.18.5-.42l.37-2.65c.63-.26 1.17-.59 1.69-.99l2.49 1.01c.22.08.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.66z"/>
+                  </svg>
+                )}
                 <span className="font-bold">
+                  {isManualExclusion ? 'MANUAL EXCLUSION | ' : isAutoExclusion ? 'AUTO-EXCLUDED | ' : ''}
                   Call #{callData.callInfo.responseNumber?.split('-')[1] || callData.callInfo.responseNumber || callData.callId}
                 </span>
                 <span className="text-slate-600">{callData.callInfo.responseDate}</span>
                 <span className="text-slate-600">Unit: {callData.callInfo.unit || '—'}</span>
                 <span className="text-slate-600">Zone: {callData.callInfo.zone || '—'}</span>
               </div>
-              <span className="audit-log-badge bg-slate-600 text-white px-2 py-0.5 rounded text-[10px] font-medium">
-                Total Edits: {callData.edits.length}
+              <span className={`audit-log-badge text-white px-2 py-0.5 rounded text-[10px] font-medium ${
+                isAutoExclusion ? 'bg-red-600' : 'bg-slate-600'
+              }`}>
+                {isAutoExclusion
+                  ? `#${callData.windowContext?.callPosition || '?'} of ${callData.windowContext?.callsInWindow || '?'} calls`
+                  : isManualExclusion
+                  ? 'User Excluded'
+                  : `Total Edits: ${callData.edits?.length || 0}`
+                }
               </span>
             </div>
 
-            {/* Compact Edits */}
-            <div className="text-xs">
-              {callData.edits.map((edit, idx) => (
-                <div
-                  key={edit.id || idx}
-                  className={`px-3 py-1.5 flex items-start gap-3 ${idx % 2 === 0 ? 'audit-log-row-even bg-slate-50' : 'audit-log-row-odd bg-white'} ${idx < callData.edits.length - 1 ? 'border-b border-slate-100' : ''}`}
-                >
-                  {/* Field + Time Change */}
-                  <div className="flex items-center gap-2 min-w-[200px]">
-                    <span className="font-semibold text-slate-700 w-16">{edit.fieldLabel}:</span>
-                    <span className="font-mono text-red-600">{extractTime(edit.oldValue)}</span>
-                    <span className="text-slate-400">→</span>
-                    <span className="font-mono text-green-600">{extractTime(edit.newValue)}</span>
+            {/* Content differs based on entry type */}
+            {callData.entryType === 'time_edit' ? (
+              /* Time Edit Details */
+              <div className="text-xs">
+                {callData.edits.map((edit, idx) => (
+                  <div
+                    key={edit.id || idx}
+                    className={`px-3 py-1.5 flex items-start gap-3 ${idx % 2 === 0 ? 'audit-log-row-even bg-slate-50' : 'audit-log-row-odd bg-white'} ${idx < callData.edits.length - 1 ? 'border-b border-slate-100' : ''}`}
+                  >
+                    {/* Field + Time Change */}
+                    <div className="flex items-center gap-2 min-w-[200px]">
+                      <span className="font-semibold text-slate-700 w-16">{edit.fieldLabel}:</span>
+                      <span className="font-mono text-red-600">{extractTime(edit.oldValue)}</span>
+                      <span className="text-slate-400">→</span>
+                      <span className="font-mono text-green-600">{extractTime(edit.newValue)}</span>
+                    </div>
+                    {/* Reason */}
+                    <div className="flex-1 text-slate-600 truncate" title={edit.reason}>
+                      {edit.reason}
+                    </div>
+                    {/* Who/When */}
+                    <div className="text-slate-400 text-right whitespace-nowrap">
+                      {edit.editedByName || edit.editedBy?.split('@')[0]} · {formatDateTime(edit.editedAt)}
+                    </div>
                   </div>
-                  {/* Reason */}
-                  <div className="flex-1 text-slate-600 truncate" title={edit.reason}>
-                    {edit.reason}
-                  </div>
-                  {/* Who/When */}
-                  <div className="text-slate-400 text-right whitespace-nowrap">
-                    {edit.editedByName || edit.editedBy?.split('@')[0]} · {formatDateTime(edit.editedAt)}
-                  </div>
+                ))}
+              </div>
+            ) : isManualExclusion ? (
+              /* Manual Exclusion Details - compact single line */
+              <div className="text-xs px-3 py-1.5 bg-slate-50 flex items-center justify-between">
+                <div>
+                  <span className="font-semibold text-slate-700">Reason:</span>
+                  <span className="text-slate-600 ml-1">{callData.exclusion?.reason || '—'}</span>
                 </div>
-              ))}
-            </div>
+                <div className="text-slate-400">
+                  Excluded by: {callData.exclusion?.excludedBy || 'Unknown'} · {formatDateTime(callData.exclusion?.excludedAt)}
+                </div>
+              </div>
+            ) : (
+              /* Auto-Exclusion Details - compact format */
+              <div className="text-xs px-3 py-1.5 bg-red-50 flex items-center justify-between">
+                <div>
+                  <span className="font-semibold text-slate-700">Reason:</span>
+                  <span className="text-slate-600 ml-1">
+                    Peak Call Load: Calls {' '}
+                    {callData.windowContext?.windowCalls && callData.windowContext.windowCalls.length > 0 ? (
+                      callData.windowContext.windowCalls
+                        .filter(wc => wc.callId !== callData.callId)
+                        .map((wc, idx, arr) => {
+                          const callNum = wc.responseNumber?.split('-')[1] || wc.responseNumber;
+                          if (idx === 0) return callNum;
+                          if (idx === arr.length - 1) return `, and ${callNum}`;
+                          return `, ${callNum}`;
+                        })
+                        .join('')
+                    ) : '—'}{' '}
+                    occurred within a {callData.windowContext?.windowMinutes || 45}-minute window
+                  </span>
+                </div>
+                <div className="text-slate-400">
+                  Caught: {formatDateTime(callData.exclusion?.excludedAt)}
+                </div>
+              </div>
+            )}
           </div>
-        ))}
+        );
+        })}
       </div>
 
       {/* Bottom padding for scroll */}
@@ -823,6 +915,10 @@ function CallsPageContent() {
   const [showAuditLog, setShowAuditLog] = useState(false);
   const [auditLogData, setAuditLogData] = useState([]);
   const [auditLogLoading, setAuditLogLoading] = useState(false);
+
+  // Auto-exclusion audit state
+  const [autoExclusionAuditData, setAutoExclusionAuditData] = useState([]);
+  const [autoExclusionAuditLoading, setAutoExclusionAuditLoading] = useState(false);
 
   // Active tab state: 'calls' or 'audit'
   const [activeTab, setActiveTab] = useState('calls');
@@ -1026,26 +1122,40 @@ function CallsPageContent() {
     }
   }
 
-  // Fetch audit log data for the current date range
+  // Fetch audit log data for the current date range (time edits + all exclusions)
   async function fetchAuditLog() {
     if (!parishId || !startDate || !endDate) return;
 
     setAuditLogLoading(true);
+    setAutoExclusionAuditLoading(true);
+
     try {
       const params = new URLSearchParams();
       params.set('parish_id', parishId);
       if (startDate) params.set('start', startDate);
       if (endDate) params.set('end', endDate);
 
-      const res = await fetch(`/api/calls/time-edits?${params.toString()}`);
-      if (res.ok) {
-        const data = await res.json();
+      // Fetch both time edits and all exclusions (manual + auto) in parallel
+      const [timeEditsRes, exclusionsRes] = await Promise.all([
+        fetch(`/api/calls/time-edits?${params.toString()}`),
+        fetch(`/api/calls/exclusion-audit?${params.toString()}`)
+      ]);
+
+      if (timeEditsRes.ok) {
+        const data = await timeEditsRes.json();
         setAuditLogData(data.callEdits || []);
+      }
+
+      if (exclusionsRes.ok) {
+        const data = await exclusionsRes.json();
+        // The new endpoint returns all exclusions (manual + auto)
+        setAutoExclusionAuditData(data.exclusions || []);
       }
     } catch (err) {
       console.error('Failed to fetch audit log:', err);
     } finally {
       setAuditLogLoading(false);
+      setAutoExclusionAuditLoading(false);
     }
   }
 
@@ -1738,9 +1848,9 @@ function CallsPageContent() {
               style={activeTab === 'audit' ? {} : { transform: 'translateY(3px)' }}
             >
               Audit Log
-              {auditLogData.length > 0 && (
+              {(auditLogData.length > 0 || autoExclusionAuditData.length > 0) && (
                 <span className="ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-600 text-white">
-                  {auditLogData.length}
+                  {auditLogData.length + autoExclusionAuditData.length}
                 </span>
               )}
             </button>
@@ -1942,19 +2052,23 @@ function CallsPageContent() {
 
           {/* Audit Log Tab Content */}
           <div className={`${activeTab === 'audit' ? '' : 'hidden'} print:block`}>
-            {auditLogLoading ? (
+            {(auditLogLoading || autoExclusionAuditLoading) ? (
               <div className="p-8 text-center text-slate-500">
                 Loading audit log...
               </div>
-            ) : auditLogData.length > 0 ? (
-              <AuditLogPanel callEdits={auditLogData} isOpen={true} />
+            ) : (auditLogData.length > 0 || autoExclusionAuditData.length > 0) ? (
+              <AuditLogPanel
+                callEdits={auditLogData}
+                autoExclusions={autoExclusionAuditData}
+                isOpen={true}
+              />
             ) : (
               <div className="p-8 text-center text-slate-500">
                 <svg className="w-12 h-12 mx-auto mb-3 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                <p className="font-medium">No Time Edits</p>
-                <p className="text-sm mt-1">No time fields have been edited for calls in this date range.</p>
+                <p className="font-medium">No Audit Entries</p>
+                <p className="text-sm mt-1">No time edits or auto-exclusions for calls in this date range.</p>
               </div>
             )}
           </div>
