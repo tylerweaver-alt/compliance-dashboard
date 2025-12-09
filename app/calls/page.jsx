@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, Suspense, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { loadDateRange, saveDateRange } from '@/lib/dates/dateRange';
 
 // Toast Notification Component
 function Toast({ message, type = 'success', isVisible, onClose }) {
@@ -16,29 +17,48 @@ function Toast({ message, type = 'success', isVisible, onClose }) {
 
   if (!isVisible) return null;
 
-  const bgColor = type === 'success' ? 'bg-green-600' : type === 'error' ? 'bg-red-600' : 'bg-blue-600';
-  const icon = type === 'success' ? (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-    </svg>
-  ) : type === 'error' ? (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-    </svg>
-  ) : (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-  );
+  const bgColor =
+    type === 'success' ? 'bg-green-600' : type === 'error' ? 'bg-red-600' : 'bg-blue-600';
+  const icon =
+    type === 'success' ? (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+      </svg>
+    ) : type === 'error' ? (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M6 18L18 6M6 6l12 12"
+        />
+      </svg>
+    ) : (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+        />
+      </svg>
+    );
 
   return (
     <div className="fixed bottom-6 right-6 z-50 animate-slide-up print:hidden">
-      <div className={`${bgColor} text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3`}>
+      <div
+        className={`${bgColor} text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3`}
+      >
         {icon}
         <span className="font-medium">{message}</span>
         <button onClick={onClose} className="ml-2 opacity-70 hover:opacity-100">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M6 18L18 6M6 6l12 12"
+            />
           </svg>
         </button>
       </div>
@@ -75,14 +95,7 @@ function ComplianceGauge({ percentage, thresholds }) {
     <div className="relative w-48 h-48 print:w-24 print:h-24">
       <svg className="w-full h-full transform -rotate-90" viewBox="0 0 180 180">
         {/* Background circle */}
-        <circle
-          cx="90"
-          cy="90"
-          r={radius}
-          fill="none"
-          stroke="#e2e8f0"
-          strokeWidth={strokeWidth}
-        />
+        <circle cx="90" cy="90" r={radius} fill="none" stroke="#e2e8f0" strokeWidth={strokeWidth} />
         {/* Progress circle */}
         <circle
           cx="90"
@@ -99,8 +112,12 @@ function ComplianceGauge({ percentage, thresholds }) {
       </svg>
       {/* Center text */}
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-4xl font-bold print:text-lg" style={{ color }}>{percentage}%</span>
-        <span className="text-sm text-slate-500 uppercase tracking-wider print:text-[8px]">Compliant</span>
+        <span className="text-4xl font-bold print:text-lg" style={{ color }}>
+          {percentage}%
+        </span>
+        <span className="text-sm text-slate-500 uppercase tracking-wider print:text-[8px]">
+          Compliant
+        </span>
       </div>
     </div>
   );
@@ -109,9 +126,15 @@ function ComplianceGauge({ percentage, thresholds }) {
 // Stat Card Component
 function StatCard({ label, value, accent = false }) {
   return (
-    <div className={`p-4 print:p-1 rounded-lg print:bg-white print:border print:border-slate-200 ${accent ? 'bg-[#004437]/10 border-l-4 border-[#004437]' : 'bg-slate-100'}`}>
-      <div className="text-xs print:text-[8px] text-slate-500 uppercase tracking-wider mb-1 print:mb-0 print:text-slate-600">{label}</div>
-      <div className={`text-3xl print:text-base font-bold print:text-slate-900 ${accent ? 'text-[#004437]' : 'text-slate-800'}`}>
+    <div
+      className={`p-4 print:p-1 rounded-lg print:bg-white print:border print:border-slate-200 ${accent ? 'bg-[#004437]/10 border-l-4 border-[#004437]' : 'bg-slate-100'}`}
+    >
+      <div className="text-xs print:text-[8px] text-slate-500 uppercase tracking-wider mb-1 print:mb-0 print:text-slate-600">
+        {label}
+      </div>
+      <div
+        className={`text-3xl print:text-base font-bold print:text-slate-900 ${accent ? 'text-[#004437]' : 'text-slate-800'}`}
+      >
         {value !== undefined && value !== null ? value : '—'}
       </div>
     </div>
@@ -121,9 +144,12 @@ function StatCard({ label, value, accent = false }) {
 // Call Breakdown Item
 function BreakdownItem({ label, value, isPercentage = false, highlight = false }) {
   return (
-    <div className={`text-center p-4 rounded-lg ${highlight ? 'bg-[#004437]/10 border border-[#004437]/20' : 'bg-slate-50'}`}>
+    <div
+      className={`text-center p-4 rounded-lg ${highlight ? 'bg-[#004437]/10 border border-[#004437]/20' : 'bg-slate-50'}`}
+    >
       <div className={`text-2xl font-bold mb-1 ${highlight ? 'text-[#004437]' : 'text-slate-800'}`}>
-        {value}{isPercentage ? '%' : ''}
+        {value}
+        {isPercentage ? '%' : ''}
       </div>
       <div className="text-xs text-slate-500 uppercase tracking-wider">{label}</div>
     </div>
@@ -170,7 +196,9 @@ function ExclusionModal({ isOpen, onClose, onExclude, callId }) {
             <label
               key={reason}
               className={`flex items-center p-3 rounded-lg cursor-pointer transition-colors ${
-                selectedReason === reason ? 'bg-[#004437] text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                selectedReason === reason
+                  ? 'bg-[#004437] text-white'
+                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
               }`}
             >
               <input
@@ -206,7 +234,10 @@ function ExclusionModal({ isOpen, onClose, onExclude, callId }) {
           </button>
           <button
             onClick={handleApply}
-            disabled={!selectedReason || (selectedReason === 'Other (Specify Below)' && !customReason.trim())}
+            disabled={
+              !selectedReason ||
+              (selectedReason === 'Other (Specify Below)' && !customReason.trim())
+            }
             className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Apply Exclusion
@@ -231,14 +262,14 @@ function ExclusionDetailsModal({ isOpen, onClose, callId, onReasonUpdated }) {
       setLoading(true);
       setError('');
       fetch(`/api/calls/exclusion?callId=${callId}`)
-        .then(res => res.json())
-        .then(data => {
+        .then((res) => res.json())
+        .then((data) => {
           if (data.ok) {
             setExclusion(data.exclusion);
             setEditedReason(data.exclusion.reason || '');
           }
         })
-        .catch(err => setError('Failed to load exclusion details'))
+        .catch((err) => setError('Failed to load exclusion details'))
         .finally(() => setLoading(false));
     }
   }, [isOpen, callId]);
@@ -279,7 +310,7 @@ function ExclusionDetailsModal({ isOpen, onClose, callId, onReasonUpdated }) {
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
             <svg className="w-6 h-6 text-red-600" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M3 6a3 3 0 013-3h10a1 1 0 01.8 1.6L14.25 8l2.55 3.4A1 1 0 0116 13H6a1 1 0 00-1 1v3a1 1 0 11-2 0V6z"/>
+              <path d="M3 6a3 3 0 013-3h10a1 1 0 01.8 1.6L14.25 8l2.55 3.4A1 1 0 0116 13H6a1 1 0 00-1 1v3a1 1 0 11-2 0V6z" />
             </svg>
           </div>
           <h3 className="text-xl font-bold text-slate-900">Exclusion Details</h3>
@@ -293,11 +324,13 @@ function ExclusionDetailsModal({ isOpen, onClose, callId, onReasonUpdated }) {
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium text-slate-500">Type:</span>
-              <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                exclusion.exclusionType === 'AUTO'
-                  ? 'bg-blue-100 text-blue-700'
-                  : 'bg-orange-100 text-orange-700'
-              }`}>
+              <span
+                className={`px-2 py-0.5 rounded text-xs font-medium ${
+                  exclusion.exclusionType === 'AUTO'
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'bg-orange-100 text-orange-700'
+                }`}
+              >
                 {exclusion.exclusionType === 'AUTO' ? 'Auto-Excluded' : 'Manual'}
               </span>
             </div>
@@ -350,7 +383,10 @@ function ExclusionDetailsModal({ isOpen, onClose, callId, onReasonUpdated }) {
           {editMode ? (
             <>
               <button
-                onClick={() => { setEditMode(false); setEditedReason(exclusion?.reason || ''); }}
+                onClick={() => {
+                  setEditMode(false);
+                  setEditedReason(exclusion?.reason || '');
+                }}
                 className="flex-1 px-4 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300"
               >
                 Cancel
@@ -378,7 +414,18 @@ function ExclusionDetailsModal({ isOpen, onClose, callId, onReasonUpdated }) {
 }
 
 // Edit Time Modal - For editing time fields with required reason
-function EditTimeModal({ isOpen, onClose, callId, field, fieldLabel, currentValue, onSaved, userRole, onToast, callData }) {
+function EditTimeModal({
+  isOpen,
+  onClose,
+  callId,
+  field,
+  fieldLabel,
+  currentValue,
+  onSaved,
+  userRole,
+  onToast,
+  callData,
+}) {
   const [newValue, setNewValue] = useState('');
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
@@ -386,20 +433,21 @@ function EditTimeModal({ isOpen, onClose, callId, field, fieldLabel, currentValu
 
   // Allowed roles for editing
   const ALLOWED_ROLES = ['om', 'director', 'vp', 'admin'];
-  const canEdit = userRole && (userRole.is_admin || ALLOWED_ROLES.includes(userRole.role?.toLowerCase()));
+  const canEdit =
+    userRole && (userRole.is_admin || ALLOWED_ROLES.includes(userRole.role?.toLowerCase()));
 
   // Time field order for validation (earlier fields should have earlier times)
   const TIME_FIELD_ORDER = [
-    'call_in_que_time',        // Received
+    'call_in_que_time', // Received
     'call_taking_complete_time',
     'assigned_time_first_unit',
-    'assigned_time',           // Dispatched
-    'enroute_time',            // Enroute
-    'staged_time',             // Staged
-    'arrived_at_scene_time',   // On Scene
-    'depart_scene_time',       // Departed Scene
+    'assigned_time', // Dispatched
+    'enroute_time', // Enroute
+    'staged_time', // Staged
+    'arrived_at_scene_time', // On Scene
+    'depart_scene_time', // Departed Scene
     'arrived_destination_time', // Arrived Destination
-    'call_cleared_time',       // Call Cleared
+    'call_cleared_time', // Call Cleared
   ];
 
   useEffect(() => {
@@ -417,9 +465,14 @@ function EditTimeModal({ isOpen, onClose, callId, field, fieldLabel, currentValu
     const match = timeStr.match(/^(\d{1,2}):(\d{2}):(\d{2})$/);
     if (!match) return false;
     const [, h, m, s] = match;
-    return parseInt(h) >= 0 && parseInt(h) <= 23 &&
-           parseInt(m) >= 0 && parseInt(m) <= 59 &&
-           parseInt(s) >= 0 && parseInt(s) <= 59;
+    return (
+      parseInt(h) >= 0 &&
+      parseInt(h) <= 23 &&
+      parseInt(m) >= 0 &&
+      parseInt(m) <= 59 &&
+      parseInt(s) >= 0 &&
+      parseInt(s) <= 59
+    );
   };
 
   // Parse time string to minutes since midnight for comparison
@@ -449,13 +502,14 @@ function EditTimeModal({ isOpen, onClose, callId, field, fieldLabel, currentValu
       if (prevValue) {
         const prevMinutes = timeToMinutes(prevValue);
         if (prevMinutes !== null && newTimeMinutes < prevMinutes) {
-          const prevLabel = {
-            call_in_que_time: 'Received',
-            assigned_time: 'Dispatched',
-            enroute_time: 'Enroute',
-            staged_time: 'Staged',
-            arrived_at_scene_time: 'On Scene',
-          }[prevField] || prevField;
+          const prevLabel =
+            {
+              call_in_que_time: 'Received',
+              assigned_time: 'Dispatched',
+              enroute_time: 'Enroute',
+              staged_time: 'Staged',
+              arrived_at_scene_time: 'On Scene',
+            }[prevField] || prevField;
           return `Time cannot be before ${prevLabel} (${prevValue.split(' ')[1] || prevValue})`;
         }
       }
@@ -468,13 +522,14 @@ function EditTimeModal({ isOpen, onClose, callId, field, fieldLabel, currentValu
       if (nextValue) {
         const nextMinutes = timeToMinutes(nextValue);
         if (nextMinutes !== null && newTimeMinutes > nextMinutes) {
-          const nextLabel = {
-            assigned_time: 'Dispatched',
-            enroute_time: 'Enroute',
-            arrived_at_scene_time: 'On Scene',
-            depart_scene_time: 'Departed',
-            call_cleared_time: 'Cleared',
-          }[nextField] || nextField;
+          const nextLabel =
+            {
+              assigned_time: 'Dispatched',
+              enroute_time: 'Enroute',
+              arrived_at_scene_time: 'On Scene',
+              depart_scene_time: 'Departed',
+              call_cleared_time: 'Cleared',
+            }[nextField] || nextField;
           return `Time cannot be after ${nextLabel} (${nextValue.split(' ')[1] || nextValue})`;
         }
       }
@@ -546,8 +601,18 @@ function EditTimeModal({ isOpen, onClose, callId, field, fieldLabel, currentValu
       <div className="bg-white rounded-xl p-6 max-w-lg w-full mx-4 shadow-2xl">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-            <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            <svg
+              className="w-6 h-6 text-blue-600"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
             </svg>
           </div>
           <h3 className="text-xl font-bold text-slate-900">Edit {fieldLabel || field}</h3>
@@ -556,7 +621,9 @@ function EditTimeModal({ isOpen, onClose, callId, field, fieldLabel, currentValu
         {!canEdit ? (
           <div className="py-6 text-center">
             <p className="text-red-600 font-medium">Permission Denied</p>
-            <p className="text-sm text-slate-500 mt-2">Only OM, Director, VP, or Admin can edit time fields.</p>
+            <p className="text-sm text-slate-500 mt-2">
+              Only OM, Director, VP, or Admin can edit time fields.
+            </p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -633,16 +700,17 @@ function AuditLogPanel({ callEdits, autoExclusions, isOpen }) {
 
   // Add time edit entries (type: 'time_edit')
   if (callEdits && callEdits.length > 0) {
-    callEdits.forEach(item => {
+    callEdits.forEach((item) => {
       allEntries.push({ ...item, entryType: 'time_edit' });
     });
   }
 
   // Add exclusion entries (both manual and auto - from unified endpoint)
   if (autoExclusions && autoExclusions.length > 0) {
-    autoExclusions.forEach(item => {
+    autoExclusions.forEach((item) => {
       // Determine entry type based on exclusion.type
-      const exclusionType = item.exclusion?.type === 'MANUAL' ? 'manual_exclusion' : 'auto_exclusion';
+      const exclusionType =
+        item.exclusion?.type === 'MANUAL' ? 'manual_exclusion' : 'auto_exclusion';
       allEntries.push({ ...item, entryType: exclusionType });
     });
   }
@@ -653,8 +721,12 @@ function AuditLogPanel({ callEdits, autoExclusions, isOpen }) {
     if (!isoString) return '—';
     const d = new Date(isoString);
     return d.toLocaleString('en-US', {
-      month: '2-digit', day: '2-digit', year: '2-digit',
-      hour: '2-digit', minute: '2-digit', hour12: true
+      month: '2-digit',
+      day: '2-digit',
+      year: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
     });
   };
 
@@ -666,8 +738,8 @@ function AuditLogPanel({ callEdits, autoExclusions, isOpen }) {
 
   // Count by type for header
   const timeEditCount = callEdits?.length || 0;
-  const autoExclusionCount = allEntries.filter(e => e.entryType === 'auto_exclusion').length;
-  const manualExclusionCount = allEntries.filter(e => e.entryType === 'manual_exclusion').length;
+  const autoExclusionCount = allEntries.filter((e) => e.entryType === 'auto_exclusion').length;
+  const manualExclusionCount = allEntries.filter((e) => e.entryType === 'manual_exclusion').length;
 
   return (
     <div className="print:break-before-page audit-log-print">
@@ -676,11 +748,17 @@ function AuditLogPanel({ callEdits, autoExclusions, isOpen }) {
         <h2 className="text-sm font-semibold text-slate-700 text-center underline decoration-1 decoration-slate-400 underline-offset-2">
           Audit Log — {allEntries.length} item(s)
           <span className="text-slate-500 font-normal ml-2">
-            ({timeEditCount > 0 ? `${timeEditCount} time edit${timeEditCount !== 1 ? 's' : ''}` : ''}
+            (
+            {timeEditCount > 0 ? `${timeEditCount} time edit${timeEditCount !== 1 ? 's' : ''}` : ''}
             {timeEditCount > 0 && (manualExclusionCount > 0 || autoExclusionCount > 0) ? ', ' : ''}
-            {manualExclusionCount > 0 ? `${manualExclusionCount} manual exclusion${manualExclusionCount !== 1 ? 's' : ''}` : ''}
+            {manualExclusionCount > 0
+              ? `${manualExclusionCount} manual exclusion${manualExclusionCount !== 1 ? 's' : ''}`
+              : ''}
             {manualExclusionCount > 0 && autoExclusionCount > 0 ? ', ' : ''}
-            {autoExclusionCount > 0 ? `${autoExclusionCount} auto-exclusion${autoExclusionCount !== 1 ? 's' : ''}` : ''})
+            {autoExclusionCount > 0
+              ? `${autoExclusionCount} auto-exclusion${autoExclusionCount !== 1 ? 's' : ''}`
+              : ''}
+            )
           </span>
         </h2>
       </div>
@@ -693,104 +771,121 @@ function AuditLogPanel({ callEdits, autoExclusions, isOpen }) {
           const isExclusion = isManualExclusion || isAutoExclusion;
 
           return (
-          <div key={`${callData.entryType}-${callData.callId}`} className="bg-white">
-            {/* Call Header - different styling for auto vs others */}
-            <div className={`audit-log-call-header text-slate-900 px-3 py-1.5 flex items-center justify-between text-xs border-b border-slate-400 ${
-              isAutoExclusion ? 'bg-red-200' : 'bg-slate-300'
-            }`}>
-              <div className="flex items-center gap-4">
-                {/* Gear icon for auto-exclusions */}
-                {isAutoExclusion && (
-                  <svg className="w-5 h-5 text-slate-700" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 15.5A3.5 3.5 0 0 1 8.5 12 3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.53c.04-.32.07-.64.07-.97 0-.33-.03-.66-.07-1l2.11-1.63c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.31-.61-.22l-2.49 1c-.52-.39-1.06-.73-1.69-.98l-.37-2.65A.506.506 0 0 0 14 2h-4c-.25 0-.46.18-.5.42l-.37 2.65c-.63.25-1.17.59-1.69.98l-2.49-1c-.22-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64L4.57 11c-.04.34-.07.67-.07 1 0 .33.03.65.07.97l-2.11 1.66c-.19.15-.25.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1.01c.52.4 1.06.74 1.69.99l.37 2.65c.04.24.25.42.5.42h4c.25 0 .46-.18.5-.42l.37-2.65c.63-.26 1.17-.59 1.69-.99l2.49 1.01c.22.08.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.66z"/>
-                  </svg>
-                )}
-                <span className="font-bold">
-                  {isManualExclusion ? 'MANUAL EXCLUSION | ' : isAutoExclusion ? 'AUTO-EXCLUDED | ' : ''}
-                  Call #{callData.callInfo.responseNumber?.split('-')[1] || callData.callInfo.responseNumber || callData.callId}
-                </span>
-                <span className="text-slate-600">{callData.callInfo.responseDate}</span>
-                <span className="text-slate-600">Unit: {callData.callInfo.unit || '—'}</span>
-                <span className="text-slate-600">Zone: {callData.callInfo.zone || '—'}</span>
-              </div>
-              <span className={`audit-log-badge text-white px-2 py-0.5 rounded text-[10px] font-medium ${
-                isAutoExclusion ? 'bg-red-600' : 'bg-slate-600'
-              }`}>
-                {isAutoExclusion
-                  ? `#${callData.windowContext?.callPosition || '?'} of ${callData.windowContext?.callsInWindow || '?'} calls`
-                  : isManualExclusion
-                  ? 'User Excluded'
-                  : `Total Edits: ${callData.edits?.length || 0}`
-                }
-              </span>
-            </div>
-
-            {/* Content differs based on entry type */}
-            {callData.entryType === 'time_edit' ? (
-              /* Time Edit Details */
-              <div className="text-xs">
-                {callData.edits.map((edit, idx) => (
-                  <div
-                    key={edit.id || idx}
-                    className={`px-3 py-1.5 flex items-start gap-3 ${idx % 2 === 0 ? 'audit-log-row-even bg-slate-50' : 'audit-log-row-odd bg-white'} ${idx < callData.edits.length - 1 ? 'border-b border-slate-100' : ''}`}
-                  >
-                    {/* Field + Time Change */}
-                    <div className="flex items-center gap-2 min-w-[200px]">
-                      <span className="font-semibold text-slate-700 w-16">{edit.fieldLabel}:</span>
-                      <span className="font-mono text-red-600">{extractTime(edit.oldValue)}</span>
-                      <span className="text-slate-400">→</span>
-                      <span className="font-mono text-green-600">{extractTime(edit.newValue)}</span>
-                    </div>
-                    {/* Reason */}
-                    <div className="flex-1 text-slate-600 truncate" title={edit.reason}>
-                      {edit.reason}
-                    </div>
-                    {/* Who/When */}
-                    <div className="text-slate-400 text-right whitespace-nowrap">
-                      {edit.editedByName || edit.editedBy?.split('@')[0]} · {formatDateTime(edit.editedAt)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : isManualExclusion ? (
-              /* Manual Exclusion Details - compact single line */
-              <div className="text-xs px-3 py-1.5 bg-slate-50 flex items-center justify-between">
-                <div>
-                  <span className="font-semibold text-slate-700">Reason:</span>
-                  <span className="text-slate-600 ml-1">{callData.exclusion?.reason || '—'}</span>
-                </div>
-                <div className="text-slate-400">
-                  Excluded by: {callData.exclusion?.excludedBy || 'Unknown'} · {formatDateTime(callData.exclusion?.excludedAt)}
-                </div>
-              </div>
-            ) : (
-              /* Auto-Exclusion Details - compact format */
-              <div className="text-xs px-3 py-1.5 bg-red-50 flex items-center justify-between">
-                <div>
-                  <span className="font-semibold text-slate-700">Reason:</span>
-                  <span className="text-slate-600 ml-1">
-                    Peak Call Load: Calls {' '}
-                    {callData.windowContext?.windowCalls && callData.windowContext.windowCalls.length > 0 ? (
-                      callData.windowContext.windowCalls
-                        .filter(wc => wc.callId !== callData.callId)
-                        .map((wc, idx, arr) => {
-                          const callNum = wc.responseNumber?.split('-')[1] || wc.responseNumber;
-                          if (idx === 0) return callNum;
-                          if (idx === arr.length - 1) return `, and ${callNum}`;
-                          return `, ${callNum}`;
-                        })
-                        .join('')
-                    ) : '—'}{' '}
-                    occurred within a {callData.windowContext?.windowMinutes || 45}-minute window
+            <div key={`${callData.entryType}-${callData.callId}`} className="bg-white">
+              {/* Call Header - different styling for auto vs others */}
+              <div
+                className={`audit-log-call-header text-slate-900 px-3 py-1.5 flex items-center justify-between text-xs border-b border-slate-400 ${
+                  isAutoExclusion ? 'bg-red-200' : 'bg-slate-300'
+                }`}
+              >
+                <div className="flex items-center gap-4">
+                  {/* Gear icon for auto-exclusions */}
+                  {isAutoExclusion && (
+                    <svg className="w-5 h-5 text-slate-700" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 15.5A3.5 3.5 0 0 1 8.5 12 3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.53c.04-.32.07-.64.07-.97 0-.33-.03-.66-.07-1l2.11-1.63c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.31-.61-.22l-2.49 1c-.52-.39-1.06-.73-1.69-.98l-.37-2.65A.506.506 0 0 0 14 2h-4c-.25 0-.46.18-.5.42l-.37 2.65c-.63.25-1.17.59-1.69.98l-2.49-1c-.22-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64L4.57 11c-.04.34-.07.67-.07 1 0 .33.03.65.07.97l-2.11 1.66c-.19.15-.25.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1.01c.52.4 1.06.74 1.69.99l.37 2.65c.04.24.25.42.5.42h4c.25 0 .46-.18.5-.42l.37-2.65c.63-.26 1.17-.59 1.69-.99l2.49 1.01c.22.08.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.66z" />
+                    </svg>
+                  )}
+                  <span className="font-bold">
+                    {isManualExclusion
+                      ? 'MANUAL EXCLUSION | '
+                      : isAutoExclusion
+                        ? 'AUTO-EXCLUDED | '
+                        : ''}
+                    Call #
+                    {callData.callInfo.responseNumber?.split('-')[1] ||
+                      callData.callInfo.responseNumber ||
+                      callData.callId}
                   </span>
+                  <span className="text-slate-600">{callData.callInfo.responseDate}</span>
+                  <span className="text-slate-600">Unit: {callData.callInfo.unit || '—'}</span>
+                  <span className="text-slate-600">Zone: {callData.callInfo.zone || '—'}</span>
                 </div>
-                <div className="text-slate-400">
-                  Caught: {formatDateTime(callData.exclusion?.excludedAt)}
-                </div>
+                <span
+                  className={`audit-log-badge text-white px-2 py-0.5 rounded text-[10px] font-medium ${
+                    isAutoExclusion ? 'bg-red-600' : 'bg-slate-600'
+                  }`}
+                >
+                  {isAutoExclusion
+                    ? `#${callData.windowContext?.callPosition || '?'} of ${callData.windowContext?.callsInWindow || '?'} calls`
+                    : isManualExclusion
+                      ? 'User Excluded'
+                      : `Total Edits: ${callData.edits?.length || 0}`}
+                </span>
               </div>
-            )}
-          </div>
-        );
+
+              {/* Content differs based on entry type */}
+              {callData.entryType === 'time_edit' ? (
+                /* Time Edit Details */
+                <div className="text-xs">
+                  {callData.edits.map((edit, idx) => (
+                    <div
+                      key={edit.id || idx}
+                      className={`px-3 py-1.5 flex items-start gap-3 ${idx % 2 === 0 ? 'audit-log-row-even bg-slate-50' : 'audit-log-row-odd bg-white'} ${idx < callData.edits.length - 1 ? 'border-b border-slate-100' : ''}`}
+                    >
+                      {/* Field + Time Change */}
+                      <div className="flex items-center gap-2 min-w-[200px]">
+                        <span className="font-semibold text-slate-700 w-16">
+                          {edit.fieldLabel}:
+                        </span>
+                        <span className="font-mono text-red-600">{extractTime(edit.oldValue)}</span>
+                        <span className="text-slate-400">→</span>
+                        <span className="font-mono text-green-600">
+                          {extractTime(edit.newValue)}
+                        </span>
+                      </div>
+                      {/* Reason */}
+                      <div className="flex-1 text-slate-600 truncate" title={edit.reason}>
+                        {edit.reason}
+                      </div>
+                      {/* Who/When */}
+                      <div className="text-slate-400 text-right whitespace-nowrap">
+                        {edit.editedByName || edit.editedBy?.split('@')[0]} ·{' '}
+                        {formatDateTime(edit.editedAt)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : isManualExclusion ? (
+                /* Manual Exclusion Details - compact single line */
+                <div className="text-xs px-3 py-1.5 bg-slate-50 flex items-center justify-between">
+                  <div>
+                    <span className="font-semibold text-slate-700">Reason:</span>
+                    <span className="text-slate-600 ml-1">{callData.exclusion?.reason || '—'}</span>
+                  </div>
+                  <div className="text-slate-400">
+                    Excluded by: {callData.exclusion?.excludedBy || 'Unknown'} ·{' '}
+                    {formatDateTime(callData.exclusion?.excludedAt)}
+                  </div>
+                </div>
+              ) : (
+                /* Auto-Exclusion Details - compact format */
+                <div className="text-xs px-3 py-1.5 bg-red-50 flex items-center justify-between">
+                  <div>
+                    <span className="font-semibold text-slate-700">Reason:</span>
+                    <span className="text-slate-600 ml-1">
+                      Peak Call Load: Calls{' '}
+                      {callData.windowContext?.windowCalls &&
+                      callData.windowContext.windowCalls.length > 0
+                        ? callData.windowContext.windowCalls
+                            .filter((wc) => wc.callId !== callData.callId)
+                            .map((wc, idx, arr) => {
+                              const callNum = wc.responseNumber?.split('-')[1] || wc.responseNumber;
+                              if (idx === 0) return callNum;
+                              if (idx === arr.length - 1) return `, and ${callNum}`;
+                              return `, ${callNum}`;
+                            })
+                            .join('')
+                        : '—'}{' '}
+                      occurred within a {callData.windowContext?.windowMinutes || 45}-minute window
+                    </span>
+                  </div>
+                  <div className="text-slate-400">
+                    Caught: {formatDateTime(callData.exclusion?.excludedAt)}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
         })}
       </div>
 
@@ -805,8 +900,16 @@ function AuditLogPanel({ callEdits, autoExclusions, isOpen }) {
 const ALL_COLUMNS = {
   // Legacy short names (for backwards compatibility)
   date: { label: 'Date', getValue: (call) => call.response_date, className: 'text-slate-700' },
-  time: { label: 'Time', getValue: (call, parseTimeOnly) => parseTimeOnly(call.call_in_que_time), className: 'text-slate-700' },
-  call_number: { label: 'Call #', getValue: (call, parseTimeOnly, parseCallNumber) => parseCallNumber(call.response_number), className: 'font-mono text-slate-800' },
+  time: {
+    label: 'Time',
+    getValue: (call, parseTimeOnly) => parseTimeOnly(call.call_in_que_time),
+    className: 'text-slate-700',
+  },
+  call_number: {
+    label: 'Call #',
+    getValue: (call, parseTimeOnly, parseCallNumber) => parseCallNumber(call.response_number),
+    className: 'font-mono text-slate-800',
+  },
   unit: { label: 'Unit', getValue: (call) => call.radio_name || '—', className: 'text-slate-700' },
   address: {
     label: 'Address',
@@ -816,42 +919,124 @@ const ALL_COLUMNS = {
       return addr.length > 22 ? addr.substring(0, 22) + '...' : addr;
     },
     className: 'text-slate-700',
-    title: true // Enable tooltip with full address
+    title: true, // Enable tooltip with full address
   },
-  received: { label: 'Rcvd', getValue: (call, parseTimeOnly) => parseTimeOnly(call.call_in_que_time), className: 'text-slate-600', isEditableTime: true, dbField: 'call_in_que_time' },
-  dispatched: { label: 'Disp', getValue: (call, parseTimeOnly) => parseTimeOnly(call.assigned_time), className: 'text-slate-600', isEditableTime: true, dbField: 'assigned_time' },
-  enroute: { label: 'Enrt', getValue: (call, parseTimeOnly) => parseTimeOnly(call.enroute_time), className: 'text-slate-600', isEditableTime: true, dbField: 'enroute_time' },
-  staged: { label: 'Stgd', getValue: (call, parseTimeOnly) => parseTimeOnly(call.staged_time), className: 'text-slate-600', isEditableTime: true, dbField: 'staged_time' },
-  on_scene: { label: 'OnScn', getValue: (call, parseTimeOnly) => parseTimeOnly(call.arrived_at_scene_time), className: 'text-slate-600', isEditableTime: true, dbField: 'arrived_at_scene_time' },
-  depart: { label: 'Dept', getValue: (call, parseTimeOnly) => parseTimeOnly(call.depart_scene_time), className: 'text-slate-600', isEditableTime: true, dbField: 'depart_scene_time' },
-  arrived: { label: 'Arvd', getValue: (call, parseTimeOnly) => parseTimeOnly(call.arrived_destination_time), className: 'text-slate-600', isEditableTime: true, dbField: 'arrived_destination_time' },
-  available: { label: 'Avail', getValue: (call, parseTimeOnly) => parseTimeOnly(call.call_cleared_time), className: 'text-slate-600', isEditableTime: true, dbField: 'call_cleared_time' },
+  received: {
+    label: 'Rcvd',
+    getValue: (call, parseTimeOnly) => parseTimeOnly(call.call_in_que_time),
+    className: 'text-slate-600',
+    isEditableTime: true,
+    dbField: 'call_in_que_time',
+  },
+  dispatched: {
+    label: 'Disp',
+    getValue: (call, parseTimeOnly) => parseTimeOnly(call.assigned_time),
+    className: 'text-slate-600',
+    isEditableTime: true,
+    dbField: 'assigned_time',
+  },
+  enroute: {
+    label: 'Enrt',
+    getValue: (call, parseTimeOnly) => parseTimeOnly(call.enroute_time),
+    className: 'text-slate-600',
+    isEditableTime: true,
+    dbField: 'enroute_time',
+  },
+  staged: {
+    label: 'Stgd',
+    getValue: (call, parseTimeOnly) => parseTimeOnly(call.staged_time),
+    className: 'text-slate-600',
+    isEditableTime: true,
+    dbField: 'staged_time',
+  },
+  on_scene: {
+    label: 'OnScn',
+    getValue: (call, parseTimeOnly) => parseTimeOnly(call.arrived_at_scene_time),
+    className: 'text-slate-600',
+    isEditableTime: true,
+    dbField: 'arrived_at_scene_time',
+  },
+  depart: {
+    label: 'Dept',
+    getValue: (call, parseTimeOnly) => parseTimeOnly(call.depart_scene_time),
+    className: 'text-slate-600',
+    isEditableTime: true,
+    dbField: 'depart_scene_time',
+  },
+  arrived: {
+    label: 'Arvd',
+    getValue: (call, parseTimeOnly) => parseTimeOnly(call.arrived_destination_time),
+    className: 'text-slate-600',
+    isEditableTime: true,
+    dbField: 'arrived_destination_time',
+  },
+  available: {
+    label: 'Avail',
+    getValue: (call, parseTimeOnly) => parseTimeOnly(call.call_cleared_time),
+    className: 'text-slate-600',
+    isEditableTime: true,
+    dbField: 'call_cleared_time',
+  },
   response: { label: 'Resp', isResponseTime: true, isEditableTime: true },
   status: { label: 'Status', isStatus: true },
   priority: { label: 'Pri', getValue: (call) => call.priority, className: 'text-slate-700' },
-  response_area: { label: 'Zone', getValue: (call) => formatZoneName(call.response_area) || '—', className: 'text-slate-700' },
-  problem: { label: 'Problem', getValue: (call) => call.problem || '—', className: 'text-slate-700' },
-  origin_city: { label: 'City', getValue: (call) => call.origin_city || '—', className: 'text-slate-700' },
+  response_area: {
+    label: 'Zone',
+    getValue: (call) => formatZoneName(call.response_area) || '—',
+    className: 'text-slate-700',
+  },
+  problem: {
+    label: 'Problem',
+    getValue: (call) => call.problem || '—',
+    className: 'text-slate-700',
+  },
+  origin_city: {
+    label: 'City',
+    getValue: (call) => call.origin_city || '—',
+    className: 'text-slate-700',
+  },
   destination: { label: 'Destination', getValue: (call) => call.destination_name || '—' },
 
   // Core columns (database names)
-  response_number: { label: 'Response Number', getValue: (call, parseTimeOnly, parseCallNumber) => parseCallNumber(call.response_number), className: 'font-mono text-slate-800' },
+  response_number: {
+    label: 'Response Number',
+    getValue: (call, parseTimeOnly, parseCallNumber) => parseCallNumber(call.response_number),
+    className: 'font-mono text-slate-800',
+  },
   response_date: { label: 'Response Date', getValue: (call) => call.response_date },
-  response_date_time: { label: 'Response Date/Time', getValue: (call) => call.response_date_time || '—' },
+  response_date_time: {
+    label: 'Response Date/Time',
+    getValue: (call) => call.response_date_time || '—',
+  },
   radio_name: { label: 'Radio Name', getValue: (call) => call.radio_name || '—' },
 
   // Origin columns
-  origin_description: { label: 'Origin Description', getValue: (call) => call.origin_description || '—' },
+  origin_description: {
+    label: 'Origin Description',
+    getValue: (call) => call.origin_description || '—',
+  },
   origin_address: { label: 'Origin Address', getValue: (call) => call.origin_address || '—' },
-  origin_location_city: { label: 'Origin City', getValue: (call) => call.origin_location_city || '—' },
+  origin_location_city: {
+    label: 'Origin City',
+    getValue: (call) => call.origin_location_city || '—',
+  },
   origin_zip: { label: 'Origin Zip', getValue: (call) => call.origin_zip || '—' },
   origin_latitude: { label: 'Origin Lat', getValue: (call) => call.origin_latitude || '—' },
   origin_longitude: { label: 'Origin Lon', getValue: (call) => call.origin_longitude || '—' },
 
   // Destination columns
-  destination_description: { label: 'Dest Description', getValue: (call) => call.destination_description || '—' },
-  destination_address: { label: 'Dest Address', getValue: (call) => call.destination_address || '—' },
-  destination_location_city: { label: 'Dest City', getValue: (call) => call.destination_location_city || '—' },
+  destination_description: {
+    label: 'Dest Description',
+    getValue: (call) => call.destination_description || '—',
+  },
+  destination_address: {
+    label: 'Dest Address',
+    getValue: (call) => call.destination_address || '—',
+  },
+  destination_location_city: {
+    label: 'Dest City',
+    getValue: (call) => call.destination_location_city || '—',
+  },
   destination_zip: { label: 'Dest Zip', getValue: (call) => call.destination_zip || '—' },
 
   // Call detail columns
@@ -859,33 +1044,122 @@ const ALL_COLUMNS = {
   problem_description: { label: 'Problem', getValue: (call) => call.problem_description || '—' },
   transport_mode: { label: 'Transport Mode', getValue: (call) => call.transport_mode || '—' },
   cad_is_transport: { label: 'Is Transport', getValue: (call) => call.cad_is_transport || '—' },
-  master_incident_cancel_reason: { label: 'Cancel Reason', getValue: (call) => call.master_incident_cancel_reason || '—' },
-  master_incident_delay_reason_description: { label: 'Delay Reason', getValue: (call) => call.master_incident_delay_reason_description || '—' },
-  vehicle_assigned_delay_reason: { label: 'Vehicle Delay', getValue: (call) => call.vehicle_assigned_delay_reason || '—' },
+  master_incident_cancel_reason: {
+    label: 'Cancel Reason',
+    getValue: (call) => call.master_incident_cancel_reason || '—',
+  },
+  master_incident_delay_reason_description: {
+    label: 'Delay Reason',
+    getValue: (call) => call.master_incident_delay_reason_description || '—',
+  },
+  vehicle_assigned_delay_reason: {
+    label: 'Vehicle Delay',
+    getValue: (call) => call.vehicle_assigned_delay_reason || '—',
+  },
 
   // Timestamp columns (all editable)
-  call_in_que_time: { label: 'Call In Queue', getValue: (call, parseTimeOnly) => parseTimeOnly(call.call_in_que_time), isEditableTime: true, dbField: 'call_in_que_time' },
-  call_taking_complete_time: { label: 'Call Taking Complete', getValue: (call, parseTimeOnly) => parseTimeOnly(call.call_taking_complete_time), isEditableTime: true, dbField: 'call_taking_complete_time' },
-  assigned_time_first_unit: { label: 'Assigned (First)', getValue: (call, parseTimeOnly) => parseTimeOnly(call.assigned_time_first_unit), isEditableTime: true, dbField: 'assigned_time_first_unit' },
-  assigned_time: { label: 'Assigned (Dispatched)', getValue: (call, parseTimeOnly) => parseTimeOnly(call.assigned_time), isEditableTime: true, dbField: 'assigned_time' },
-  enroute_time: { label: 'Enroute Time', getValue: (call, parseTimeOnly) => parseTimeOnly(call.enroute_time), isEditableTime: true, dbField: 'enroute_time' },
-  staged_time: { label: 'Staged Time', getValue: (call, parseTimeOnly) => parseTimeOnly(call.staged_time), isEditableTime: true, dbField: 'staged_time' },
-  arrived_at_scene_time: { label: 'Arrived Scene', getValue: (call, parseTimeOnly) => parseTimeOnly(call.arrived_at_scene_time), isEditableTime: true, dbField: 'arrived_at_scene_time' },
-  depart_scene_time: { label: 'Depart Scene', getValue: (call, parseTimeOnly) => parseTimeOnly(call.depart_scene_time), isEditableTime: true, dbField: 'depart_scene_time' },
-  arrived_destination_time: { label: 'Arrived Dest', getValue: (call, parseTimeOnly) => parseTimeOnly(call.arrived_destination_time), isEditableTime: true, dbField: 'arrived_destination_time' },
-  call_cleared_time: { label: 'Call Cleared', getValue: (call, parseTimeOnly) => parseTimeOnly(call.call_cleared_time), isEditableTime: true, dbField: 'call_cleared_time' },
+  call_in_que_time: {
+    label: 'Call In Queue',
+    getValue: (call, parseTimeOnly) => parseTimeOnly(call.call_in_que_time),
+    isEditableTime: true,
+    dbField: 'call_in_que_time',
+  },
+  call_taking_complete_time: {
+    label: 'Call Taking Complete',
+    getValue: (call, parseTimeOnly) => parseTimeOnly(call.call_taking_complete_time),
+    isEditableTime: true,
+    dbField: 'call_taking_complete_time',
+  },
+  assigned_time_first_unit: {
+    label: 'Assigned (First)',
+    getValue: (call, parseTimeOnly) => parseTimeOnly(call.assigned_time_first_unit),
+    isEditableTime: true,
+    dbField: 'assigned_time_first_unit',
+  },
+  assigned_time: {
+    label: 'Assigned (Dispatched)',
+    getValue: (call, parseTimeOnly) => parseTimeOnly(call.assigned_time),
+    isEditableTime: true,
+    dbField: 'assigned_time',
+  },
+  enroute_time: {
+    label: 'Enroute Time',
+    getValue: (call, parseTimeOnly) => parseTimeOnly(call.enroute_time),
+    isEditableTime: true,
+    dbField: 'enroute_time',
+  },
+  staged_time: {
+    label: 'Staged Time',
+    getValue: (call, parseTimeOnly) => parseTimeOnly(call.staged_time),
+    isEditableTime: true,
+    dbField: 'staged_time',
+  },
+  arrived_at_scene_time: {
+    label: 'Arrived Scene',
+    getValue: (call, parseTimeOnly) => parseTimeOnly(call.arrived_at_scene_time),
+    isEditableTime: true,
+    dbField: 'arrived_at_scene_time',
+  },
+  depart_scene_time: {
+    label: 'Depart Scene',
+    getValue: (call, parseTimeOnly) => parseTimeOnly(call.depart_scene_time),
+    isEditableTime: true,
+    dbField: 'depart_scene_time',
+  },
+  arrived_destination_time: {
+    label: 'Arrived Dest',
+    getValue: (call, parseTimeOnly) => parseTimeOnly(call.arrived_destination_time),
+    isEditableTime: true,
+    dbField: 'arrived_destination_time',
+  },
+  call_cleared_time: {
+    label: 'Call Cleared',
+    getValue: (call, parseTimeOnly) => parseTimeOnly(call.call_cleared_time),
+    isEditableTime: true,
+    dbField: 'call_cleared_time',
+  },
 
   // Response time columns
-  queue_response_time: { label: 'Queue Response', getValue: (call) => call.queue_response_time || '—' },
-  assigned_response_time: { label: 'Assigned Response', getValue: (call) => call.assigned_response_time || '—' },
-  enroute_response_time: { label: 'Enroute Response', getValue: (call) => call.enroute_response_time || '—' },
-  assigned_to_arrived_at_scene: { label: 'Assigned to Arrived', getValue: (call) => call.assigned_to_arrived_at_scene || '—' },
-  call_in_queue_to_cleared_call_lag: { label: 'Queue to Cleared', getValue: (call) => call.call_in_queue_to_cleared_call_lag || '—' },
+  queue_response_time: {
+    label: 'Queue Response',
+    getValue: (call) => call.queue_response_time || '—',
+  },
+  assigned_response_time: {
+    label: 'Assigned Response',
+    getValue: (call) => call.assigned_response_time || '—',
+  },
+  enroute_response_time: {
+    label: 'Enroute Response',
+    getValue: (call) => call.enroute_response_time || '—',
+  },
+  assigned_to_arrived_at_scene: {
+    label: 'Assigned to Arrived',
+    getValue: (call) => call.assigned_to_arrived_at_scene || '—',
+  },
+  call_in_queue_to_cleared_call_lag: {
+    label: 'Queue to Cleared',
+    getValue: (call) => call.call_in_queue_to_cleared_call_lag || '—',
+  },
   compliance_time: { label: 'Compliance Time', getValue: (call) => call.compliance_time || '—' },
 };
 
 // Default columns: Date, Call#, Unit, Address, Received, Dispatched, Enroute, Staged, On Scene, Depart, Arrived, Available, Response, Status
-const DEFAULT_COLUMNS = ['date', 'call_number', 'unit', 'address', 'received', 'dispatched', 'enroute', 'staged', 'on_scene', 'depart', 'arrived', 'available', 'response', 'status'];
+const DEFAULT_COLUMNS = [
+  'date',
+  'call_number',
+  'unit',
+  'address',
+  'received',
+  'dispatched',
+  'enroute',
+  'staged',
+  'on_scene',
+  'depart',
+  'arrived',
+  'available',
+  'response',
+  'status',
+];
 
 function CallsPageContent() {
   const searchParams = useSearchParams();
@@ -902,7 +1176,14 @@ function CallsPageContent() {
   const [exclusionDetailsModal, setExclusionDetailsModal] = useState({ open: false, callId: null });
 
   // Editable time field state
-  const [editTimeModal, setEditTimeModal] = useState({ open: false, callId: null, field: null, fieldLabel: null, currentValue: null, callData: null });
+  const [editTimeModal, setEditTimeModal] = useState({
+    open: false,
+    callId: null,
+    field: null,
+    fieldLabel: null,
+    currentValue: null,
+    callData: null,
+  });
 
   // Editable response time state (legacy - for inline editing)
   const [editingResponseTime, setEditingResponseTime] = useState(null); // { callId, minutes }
@@ -938,9 +1219,30 @@ function CallsPageContent() {
   const [zoneThresholds, setZoneThresholds] = useState({}); // Map of zone name → threshold in minutes
 
   // Date range state - initialize as empty, will be set by auto-detect
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [startDate, setStartDateState] = useState('');
+  const [endDate, setEndDateState] = useState('');
   const [datesInitialized, setDatesInitialized] = useState(false);
+
+  // Wrapper functions to save date changes to sessionStorage
+  const setStartDate = useCallback(
+    (newDate) => {
+      setStartDateState(newDate);
+      if (endDate) {
+        saveDateRange({ startDate: newDate, endDate });
+      }
+    },
+    [endDate]
+  );
+
+  const setEndDate = useCallback(
+    (newDate) => {
+      setEndDateState(newDate);
+      if (startDate) {
+        saveDateRange({ startDate, endDate: newDate });
+      }
+    },
+    [startDate]
+  );
 
   // Parish ID to name mapping
   const parishNames = {
@@ -1020,7 +1322,7 @@ function CallsPageContent() {
           if (data.zones && Array.isArray(data.zones)) {
             // Build map of zone name → threshold minutes (parsed as numbers)
             const thresholdMap = {};
-            data.zones.forEach(zone => {
+            data.zones.forEach((zone) => {
               if (zone.zoneName && zone.thresholdMinutes) {
                 thresholdMap[zone.zoneName] = parseFloat(zone.thresholdMinutes);
               }
@@ -1033,24 +1335,23 @@ function CallsPageContent() {
       }
     }
 
-    // Initialize date range - prioritize URL params from dashboard, then fallback to previous month
+    // Initialize date range - prioritize URL params, then sessionStorage, then default
     function initDateRange() {
       // Check URL params first (passed from dashboard View All Calls)
       const urlStart = searchParams.get('start');
       const urlEnd = searchParams.get('end');
 
       if (urlStart && urlEnd) {
-        // Use dates passed from dashboard
-        setStartDate(urlStart);
-        setEndDate(urlEnd);
+        // Use dates passed from dashboard and save to sessionStorage
+        setStartDateState(urlStart);
+        setEndDateState(urlEnd);
+        saveDateRange({ startDate: urlStart, endDate: urlEnd });
         setDatesInitialized(true);
       } else {
-        // Fallback to previous month
-        const now = new Date();
-        const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
-        setStartDate(lastMonth.toISOString().split('T')[0]);
-        setEndDate(lastMonthEnd.toISOString().split('T')[0]);
+        // Fallback to sessionStorage or default (previous month)
+        const stored = loadDateRange();
+        setStartDateState(stored.startDate);
+        setEndDateState(stored.endDate);
         setDatesInitialized(true);
       }
     }
@@ -1103,7 +1404,7 @@ function CallsPageContent() {
       setCalls(allCalls);
 
       // Extract unique zones from calls
-      const uniqueZones = [...new Set(allCalls.map(c => c.response_area).filter(Boolean))];
+      const uniqueZones = [...new Set(allCalls.map((c) => c.response_area).filter(Boolean))];
       setZones(uniqueZones);
 
       // For average-only parishes, always use 'all'
@@ -1138,7 +1439,7 @@ function CallsPageContent() {
       // Fetch both time edits and all exclusions (manual + auto) in parallel
       const [timeEditsRes, exclusionsRes] = await Promise.all([
         fetch(`/api/calls/time-edits?${params.toString()}`),
-        fetch(`/api/calls/exclusion-audit?${params.toString()}`)
+        fetch(`/api/calls/exclusion-audit?${params.toString()}`),
       ]);
 
       if (timeEditsRes.ok) {
@@ -1167,9 +1468,8 @@ function CallsPageContent() {
   }, [parishId, startDate, endDate, datesInitialized]);
 
   // Filter calls by zone
-  const zoneFilteredCalls = selectedZone === 'all'
-    ? calls
-    : calls.filter(c => c.response_area === selectedZone);
+  const zoneFilteredCalls =
+    selectedZone === 'all' ? calls : calls.filter((c) => c.response_area === selectedZone);
 
   // =====================================================================
   // DEDUPLICATION LOGIC: Handle AirMed (AMx) and racing units
@@ -1188,7 +1488,7 @@ function CallsPageContent() {
     // Group calls by unique incident key: date + address + call_received_time
     const callGroups = {};
 
-    callsList.forEach(call => {
+    callsList.forEach((call) => {
       // Create a unique key for the incident
       const date = call.response_date || '';
       const address = (call.origin_address || '').toLowerCase().trim();
@@ -1213,7 +1513,7 @@ function CallsPageContent() {
     // Process each group
     const deduped = [];
 
-    Object.values(callGroups).forEach(group => {
+    Object.values(callGroups).forEach((group) => {
       if (group.length === 1) {
         // Single call in group
         const call = group[0];
@@ -1232,7 +1532,7 @@ function CallsPageContent() {
       let bestCall = null;
       let bestResponseMinutes = Infinity;
 
-      group.forEach(call => {
+      group.forEach((call) => {
         // Calculate response time for this call
         const responseMinutes = calculateResponseTimeForCall(call);
 
@@ -1249,7 +1549,7 @@ function CallsPageContent() {
         deduped.push(bestCall);
       } else if (group.length > 0) {
         // Fallback: just use first non-AirMed call, or first call if all are AirMed
-        const nonAirMed = group.find(c => !isAirMedUnit(c.radio_name));
+        const nonAirMed = group.find((c) => !isAirMedUnit(c.radio_name));
         deduped.push(nonAirMed || group[0]);
       }
     });
@@ -1276,25 +1576,32 @@ function CallsPageContent() {
     const [month, day, year] = datePart.split('/');
     const [hours, minutes, seconds] = timePart.split(':');
     const fullYear = year.length === 2 ? `20${year}` : year;
-    return new Date(fullYear, parseInt(month) - 1, parseInt(day), parseInt(hours), parseInt(minutes), parseInt(seconds || 0));
+    return new Date(
+      fullYear,
+      parseInt(month) - 1,
+      parseInt(day),
+      parseInt(hours),
+      parseInt(minutes),
+      parseInt(seconds || 0)
+    );
   };
 
   // Apply deduplication
   const filteredCalls = deduplicateCalls(zoneFilteredCalls);
 
   // Only count calls where we made it to the scene (have arrived_at_scene_time)
-  const sceneArrivedCalls = filteredCalls.filter(c => c.arrived_at_scene_time);
+  const sceneArrivedCalls = filteredCalls.filter((c) => c.arrived_at_scene_time);
 
   // Only Priority 1, 2, 3 count for compliance metrics
-  const complianceCalls = sceneArrivedCalls.filter(c => {
+  const complianceCalls = sceneArrivedCalls.filter((c) => {
     const priority = (c.priority || '').replace(/^0+/, ''); // Remove leading zeros
     return ['1', '2', '3'].includes(priority);
   });
 
   // Calculate stats - only using Priority 1-3 calls that arrived at scene
   const totalCalls = complianceCalls.length;
-  const excludedCalls = complianceCalls.filter(c => c.is_excluded).length;
-  const activeCalls = complianceCalls.filter(c => !c.is_excluded);
+  const excludedCalls = complianceCalls.filter((c) => c.is_excluded).length;
+  const activeCalls = complianceCalls.filter((c) => !c.is_excluded);
 
   // Parse datetime string like "10/31/25 21:45:51" to Date object
   const parseDateTime = (dateTimeStr) => {
@@ -1307,7 +1614,14 @@ function CallsPageContent() {
     const [hours, minutes, seconds] = timePart.split(':');
     // Assume 20xx for 2-digit years
     const fullYear = year.length === 2 ? `20${year}` : year;
-    return new Date(fullYear, parseInt(month) - 1, parseInt(day), parseInt(hours), parseInt(minutes), parseInt(seconds || 0));
+    return new Date(
+      fullYear,
+      parseInt(month) - 1,
+      parseInt(day),
+      parseInt(hours),
+      parseInt(minutes),
+      parseInt(seconds || 0)
+    );
   };
 
   // Calculate response time in minutes
@@ -1340,7 +1654,7 @@ function CallsPageContent() {
     if (match) {
       const mins = parseInt(match[1], 10);
       const secs = parseInt(match[2], 10);
-      return mins + (secs / 60);
+      return mins + secs / 60;
     }
     // Try parsing as just minutes
     const num = parseFloat(value);
@@ -1356,15 +1670,15 @@ function CallsPageContent() {
   const saveResponseTime = (callId, newValue) => {
     const minutes = parseResponseTimeInput(newValue);
     if (minutes !== null) {
-      setResponseTimeOverrides(prev => ({ ...prev, [callId]: minutes }));
+      setResponseTimeOverrides((prev) => ({ ...prev, [callId]: minutes }));
     }
     setEditingResponseTime(null);
   };
 
   // Adjust response time by seconds (up/down arrows)
   const adjustResponseTime = (callId, currentMinutes, deltaSeconds) => {
-    const newMinutes = Math.max(0, currentMinutes + (deltaSeconds / 60));
-    setResponseTimeOverrides(prev => ({ ...prev, [callId]: newMinutes }));
+    const newMinutes = Math.max(0, currentMinutes + deltaSeconds / 60);
+    setResponseTimeOverrides((prev) => ({ ...prev, [callId]: newMinutes }));
   };
 
   // Parse time from datetime string like "10/31/25 21:45:51" to just "21:45:51"
@@ -1384,13 +1698,15 @@ function CallsPageContent() {
   // Normalize zone name for matching (handle "5mi" vs "5min" etc.)
   const normalizeZoneName = (name) => {
     if (!name) return '';
-    return name
-      .toLowerCase()
-      .replace(/\s+/g, ' ')
-      .trim()
-      // Normalize "5mi" to "5min", "8mi" to "8min" etc.
-      .replace(/(\d+)\s*mi\b/gi, '$1min')
-      .replace(/(\d+)\s*min\b/gi, '$1min');
+    return (
+      name
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .trim()
+        // Normalize "5mi" to "5min", "8mi" to "8min" etc.
+        .replace(/(\d+)\s*mi\b/gi, '$1min')
+        .replace(/(\d+)\s*min\b/gi, '$1min')
+    );
   };
 
   // Get the compliance threshold for a call based on its zone
@@ -1423,24 +1739,21 @@ function CallsPageContent() {
     const thresholdMinutes = getThresholdForCall(call);
     // Add 59 seconds (0.9833 minutes) to the threshold
     // So a 10-minute threshold means compliant up to 10:59
-    const thresholdWithSeconds = thresholdMinutes + (59 / 60);
+    const thresholdWithSeconds = thresholdMinutes + 59 / 60;
     return mins <= thresholdWithSeconds;
   };
 
   // Use zone-specific thresholds for compliance calculation
-  const compliantCalls = activeCalls.filter(c => {
+  const compliantCalls = activeCalls.filter((c) => {
     return isCallCompliant(c) === true;
   }).length;
   const nonCompliantCalls = activeCalls.length - compliantCalls;
-  const compliancePercent = activeCalls.length > 0
-    ? ((compliantCalls / activeCalls.length) * 100).toFixed(1)
-    : '0.0';
+  const compliancePercent =
+    activeCalls.length > 0 ? ((compliantCalls / activeCalls.length) * 100).toFixed(1) : '0.0';
 
   // Calculate average response time (returns MM:SS format)
   const avgResponseTime = (() => {
-    const validTimes = activeCalls
-      .map(c => calculateResponseTime(c))
-      .filter(t => t !== null);
+    const validTimes = activeCalls.map((c) => calculateResponseTime(c)).filter((t) => t !== null);
     if (validTimes.length === 0) return '—';
     const avgMinutes = validTimes.reduce((sum, t) => sum + t, 0) / validTimes.length;
     // Format as MM:SS
@@ -1461,13 +1774,13 @@ function CallsPageContent() {
   // =====================================================================
   const getCallBreakdown = () => {
     const breakdown = {
-      totalCalls: 0,    // Priority 1-3 calls that made it to scene
-      transports: 0,    // Calls transported to hospital
-      refusals: 0,      // Calls with refusal
-      other: 0,         // Neither transported nor refusal
+      totalCalls: 0, // Priority 1-3 calls that made it to scene
+      transports: 0, // Calls transported to hospital
+      refusals: 0, // Calls with refusal
+      other: 0, // Neither transported nor refusal
     };
 
-    filteredCalls.forEach(call => {
+    filteredCalls.forEach((call) => {
       const priority = (call.priority || '').replace(/^0+/, ''); // Remove leading zeros
       const isPriority123 = ['1', '2', '3'].includes(priority);
 
@@ -1499,45 +1812,49 @@ function CallsPageContent() {
 
   const breakdown = getCallBreakdown();
   // Transfer % = Transports / Total Calls
-  const transferPct = breakdown.totalCalls > 0
-    ? ((breakdown.transports / breakdown.totalCalls) * 100).toFixed(1)
-    : '0.0';
+  const transferPct =
+    breakdown.totalCalls > 0
+      ? ((breakdown.transports / breakdown.totalCalls) * 100).toFixed(1)
+      : '0.0';
   // Refusal % = Refusals / Total Calls
-  const refusalPct = breakdown.totalCalls > 0
-    ? ((breakdown.refusals / breakdown.totalCalls) * 100).toFixed(1)
-    : '0.0';
+  const refusalPct =
+    breakdown.totalCalls > 0
+      ? ((breakdown.refusals / breakdown.totalCalls) * 100).toFixed(1)
+      : '0.0';
 
   // Calculate stats for each zone (used when "All Zones" is selected for zone-based parishes)
   const getZoneStats = (zoneCalls) => {
-    const zoneActiveCalls = zoneCalls.filter(c => !c.exclusion_reason);
+    const zoneActiveCalls = zoneCalls.filter((c) => !c.exclusion_reason);
     // Use zone-specific thresholds for each call
-    const zoneCompliant = zoneActiveCalls.filter(c => {
+    const zoneCompliant = zoneActiveCalls.filter((c) => {
       return isCallCompliant(c) === true;
     }).length;
     const zoneNonCompliant = zoneActiveCalls.length - zoneCompliant;
-    const zoneCompliancePct = zoneActiveCalls.length > 0
-      ? ((zoneCompliant / zoneActiveCalls.length) * 100).toFixed(1)
-      : '0.0';
+    const zoneCompliancePct =
+      zoneActiveCalls.length > 0
+        ? ((zoneCompliant / zoneActiveCalls.length) * 100).toFixed(1)
+        : '0.0';
     const validTimes = zoneActiveCalls
-      .map(c => calculateResponseTime(c))
-      .filter(t => t !== null);
-    const zoneAvgTime = validTimes.length > 0
-      ? (validTimes.reduce((sum, t) => sum + t, 0) / validTimes.length).toFixed(1) + ' min'
-      : '—';
-    const zoneExcluded = zoneCalls.filter(c => c.exclusion_reason).length;
+      .map((c) => calculateResponseTime(c))
+      .filter((t) => t !== null);
+    const zoneAvgTime =
+      validTimes.length > 0
+        ? (validTimes.reduce((sum, t) => sum + t, 0) / validTimes.length).toFixed(1) + ' min'
+        : '—';
+    const zoneExcluded = zoneCalls.filter((c) => c.exclusion_reason).length;
     return {
       total: zoneActiveCalls.length,
       compliant: zoneCompliant,
       nonCompliant: zoneNonCompliant,
       compliancePct: zoneCompliancePct,
       avgTime: zoneAvgTime,
-      excluded: zoneExcluded
+      excluded: zoneExcluded,
     };
   };
 
   // Get all zone stats for stacked display
-  const allZoneStats = zones.map(zone => {
-    const zoneCalls = complianceCalls.filter(c => c.response_area === zone);
+  const allZoneStats = zones.map((zone) => {
+    const zoneCalls = complianceCalls.filter((c) => c.response_area === zone);
     return { zone, ...getZoneStats(zoneCalls) };
   });
 
@@ -1578,9 +1895,11 @@ function CallsPageContent() {
         body: JSON.stringify({ callId, is_excluded: true, exclusion_reason: reason }),
       });
       if (res.ok) {
-        setCalls(calls.map(c =>
-          c.id === callId ? { ...c, is_excluded: true, exclusion_reason: reason } : c
-        ));
+        setCalls(
+          calls.map((c) =>
+            c.id === callId ? { ...c, is_excluded: true, exclusion_reason: reason } : c
+          )
+        );
       }
     } catch (err) {
       console.error('Failed to exclude call:', err);
@@ -1596,9 +1915,7 @@ function CallsPageContent() {
         body: JSON.stringify({ callId, is_confirmed: true }),
       });
       if (res.ok) {
-        setCalls(calls.map(c =>
-          c.id === callId ? { ...c, is_confirmed: true } : c
-        ));
+        setCalls(calls.map((c) => (c.id === callId ? { ...c, is_confirmed: true } : c)));
       }
     } catch (err) {
       console.error('Failed to confirm call:', err);
@@ -1631,9 +1948,10 @@ function CallsPageContent() {
   }
 
   // Build the print title with zone if selected
-  const printTitle = selectedZone !== 'all'
-    ? `${isOther ? 'Other Areas' : parishName} Parish - ${formatZoneName(selectedZone)}`
-    : `${isOther ? 'Other Areas' : parishName} Parish Compliance Report`;
+  const printTitle =
+    selectedZone !== 'all'
+      ? `${isOther ? 'Other Areas' : parishName} Parish - ${formatZoneName(selectedZone)}`
+      : `${isOther ? 'Other Areas' : parishName} Parish Compliance Report`;
 
   return (
     <div className="h-screen flex flex-col bg-slate-100 text-slate-900 overflow-hidden print:bg-white print:overflow-visible">
@@ -1646,16 +1964,15 @@ function CallsPageContent() {
         />
         <div className="h-12 w-px bg-slate-300" />
         <div>
-          <h1 className="text-2xl font-bold text-[#004437]">
-            {printTitle}
-          </h1>
+          <h1 className="text-2xl font-bold text-[#004437]">{printTitle}</h1>
           <div className="flex gap-6 text-sm text-slate-500 mt-1">
-            <span>Date Range: {startDate} to {endDate}</span>
+            <span>
+              Date Range: {startDate} to {endDate}
+            </span>
             <span>Generated: {generatedDate}</span>
           </div>
         </div>
       </div>
-
       {/* Header - matches dashboard style (hidden when printing) */}
       <header className="w-full bg-white border-b border-slate-200 shadow-sm print:hidden flex-shrink-0">
         <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
@@ -1687,8 +2004,18 @@ function CallsPageContent() {
           <div className="flex items-center gap-3 print:hidden">
             {/* Date Range */}
             <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5">
-              <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              <svg
+                className="w-4 h-4 text-slate-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                />
               </svg>
               <input
                 type="date"
@@ -1711,7 +2038,12 @@ function CallsPageContent() {
               className="flex items-center gap-1.5 px-3 py-1.5 bg-[#004437] text-white text-sm font-medium rounded-lg hover:bg-[#003329] transition-colors"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
+                />
               </svg>
               Print
             </button>
@@ -1722,365 +2054,439 @@ function CallsPageContent() {
               className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-200 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-300 transition-colors"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M10 19l-7-7m0 0l7-7m-7 7h18"
+                />
               </svg>
               Back
             </a>
           </div>
         </div>
       </header>
-
       {/* Scrollable content area */}
       <div className="flex-1 overflow-y-auto print:overflow-visible">
-
-      <div className="max-w-7xl mx-auto p-6 print:p-2">
-        {/* When "All Zones" selected AND zones exist: Show stacked zone summaries */}
-        {selectedZone === 'all' && allZoneStats.length > 0 ? (
-          <div className="space-y-4 print:space-y-1 mb-6 print:mb-2">
-            {allZoneStats.map((zs, idx) => (
-              <div key={zs.zone} className={`bg-slate-50 rounded-xl p-6 print:p-2 shadow-xl border border-slate-300 print:bg-white print:border-slate-200 print:shadow-none ${idx === allZoneStats.length - 1 ? 'print:break-after-page' : ''}`}>
-                <h2 className="text-lg print:text-sm font-semibold text-slate-700 mb-4 print:mb-1">{formatZoneName(zs.zone)}</h2>
-                <div className="flex items-center gap-8 print:gap-2">
-                  <div className="flex flex-col items-center gap-4 print:gap-1">
-                    <ComplianceGauge percentage={zs.compliancePct} />
-                    {/* Zone Dropdown under gauge - only on first zone block */}
-                    {idx === 0 && !isOther && zones.length > 0 && (
-                      <select
-                        value={selectedZone}
-                        onChange={(e) => setSelectedZone(e.target.value)}
-                        className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-sm text-slate-700 focus:outline-none focus:border-[#004437] w-full max-w-[200px] print:hidden"
-                      >
-                        <option value="all">All Response Zones</option>
-                        {zones.map(zone => (
-                          <option key={zone} value={zone}>{formatZoneName(zone)}</option>
-                        ))}
-                      </select>
-                    )}
-                  </div>
-                  <div className="flex-1 grid grid-cols-3 gap-4 print:gap-1 print:grid-cols-5">
-                    <StatCard label="Total Calls" value={zs.total} accent />
-                    <StatCard label="Compliant Calls" value={zs.compliant} accent />
-                    <StatCard label="Avg Response Time" value={zs.avgTime} accent />
-                    <StatCard label="Non-Compliant" value={zs.nonCompliant} />
-                    <StatCard label="Exceptions Applied" value={zs.excluded} />
+        <div className="max-w-7xl mx-auto p-6 print:p-2">
+          {/* When "All Zones" selected AND zones exist: Show stacked zone summaries */}
+          {selectedZone === 'all' && allZoneStats.length > 0 ? (
+            <div className="space-y-4 print:space-y-1 mb-6 print:mb-2">
+              {allZoneStats.map((zs, idx) => (
+                <div
+                  key={zs.zone}
+                  className={`bg-slate-50 rounded-xl p-6 print:p-2 shadow-xl border border-slate-300 print:bg-white print:border-slate-200 print:shadow-none ${idx === allZoneStats.length - 1 ? 'print:break-after-page' : ''}`}
+                >
+                  <h2 className="text-lg print:text-sm font-semibold text-slate-700 mb-4 print:mb-1">
+                    {formatZoneName(zs.zone)}
+                  </h2>
+                  <div className="flex items-center gap-8 print:gap-2">
+                    <div className="flex flex-col items-center gap-4 print:gap-1">
+                      <ComplianceGauge percentage={zs.compliancePct} />
+                      {/* Zone Dropdown under gauge - only on first zone block */}
+                      {idx === 0 && !isOther && zones.length > 0 && (
+                        <select
+                          value={selectedZone}
+                          onChange={(e) => setSelectedZone(e.target.value)}
+                          className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-sm text-slate-700 focus:outline-none focus:border-[#004437] w-full max-w-[200px] print:hidden"
+                        >
+                          <option value="all">All Response Zones</option>
+                          {zones.map((zone) => (
+                            <option key={zone} value={zone}>
+                              {formatZoneName(zone)}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                    <div className="flex-1 grid grid-cols-3 gap-4 print:gap-1 print:grid-cols-5">
+                      <StatCard label="Total Calls" value={zs.total} accent />
+                      <StatCard label="Compliant Calls" value={zs.compliant} accent />
+                      <StatCard label="Avg Response Time" value={zs.avgTime} accent />
+                      <StatCard label="Non-Compliant" value={zs.nonCompliant} />
+                      <StatCard label="Exceptions Applied" value={zs.excluded} />
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          /* Single Zone View (no zones exist OR specific zone selected) */
-          <div className="bg-slate-50 rounded-xl p-6 mb-6 shadow-xl border border-slate-300 print:bg-white print:border-slate-200 print:shadow-none print:break-after-page">
-            <h2 className="text-lg font-semibold text-slate-700 mb-4">
-              {/* Title: Show zone name, or "Average Response Time" if no zones */}
-              {zones.length > 0 ? formatZoneName(selectedZone) : 'Average Response Time'}
-            </h2>
-            <div className="flex items-center gap-8">
-              <div className="flex flex-col items-center gap-4">
-                <ComplianceGauge percentage={compliancePercent} />
-                {/* Zone Dropdown under gauge - show if zones exist */}
-                {!isOther && zones.length > 0 && (
-                  <select
-                    value={selectedZone}
-                    onChange={(e) => setSelectedZone(e.target.value)}
-                    className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-sm text-slate-700 focus:outline-none focus:border-[#004437] w-full max-w-[200px] print:hidden"
-                  >
-                    <option value="all">All Response Zones</option>
-                    {zones.map(zone => (
-                      <option key={zone} value={zone}>{formatZoneName(zone)}</option>
-                    ))}
-                  </select>
-                )}
-              </div>
-              <div className="flex-1 grid grid-cols-3 gap-4">
-                <StatCard label="Total Calls" value={totalCalls} accent />
-                <StatCard label="Compliant Calls" value={compliantCalls} accent />
-                <StatCard label="Avg Response Time" value={avgResponseTime} accent />
-                <StatCard label="Non-Compliant" value={nonCompliantCalls} />
-                <StatCard label="Exceptions Applied" value={excludedCalls} />
+              ))}
+            </div>
+          ) : (
+            /* Single Zone View (no zones exist OR specific zone selected) */
+            <div className="bg-slate-50 rounded-xl p-6 mb-6 shadow-xl border border-slate-300 print:bg-white print:border-slate-200 print:shadow-none print:break-after-page">
+              <h2 className="text-lg font-semibold text-slate-700 mb-4">
+                {/* Title: Show zone name, or "Average Response Time" if no zones */}
+                {zones.length > 0 ? formatZoneName(selectedZone) : 'Average Response Time'}
+              </h2>
+              <div className="flex items-center gap-8">
+                <div className="flex flex-col items-center gap-4">
+                  <ComplianceGauge percentage={compliancePercent} />
+                  {/* Zone Dropdown under gauge - show if zones exist */}
+                  {!isOther && zones.length > 0 && (
+                    <select
+                      value={selectedZone}
+                      onChange={(e) => setSelectedZone(e.target.value)}
+                      className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-sm text-slate-700 focus:outline-none focus:border-[#004437] w-full max-w-[200px] print:hidden"
+                    >
+                      <option value="all">All Response Zones</option>
+                      {zones.map((zone) => (
+                        <option key={zone} value={zone}>
+                          {formatZoneName(zone)}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+                <div className="flex-1 grid grid-cols-3 gap-4">
+                  <StatCard label="Total Calls" value={totalCalls} accent />
+                  <StatCard label="Compliant Calls" value={compliantCalls} accent />
+                  <StatCard label="Avg Response Time" value={avgResponseTime} accent />
+                  <StatCard label="Non-Compliant" value={nonCompliantCalls} />
+                  <StatCard label="Exceptions Applied" value={excludedCalls} />
+                </div>
               </div>
             </div>
-          </div>
-        )}
-
-        {/* Call Breakdown */}
-        <div className="bg-slate-50 rounded-xl p-6 mb-6 shadow-xl border border-slate-300 print:hidden">
-          <h2 className="text-lg font-semibold text-slate-700 mb-5 text-center underline decoration-2 decoration-slate-400 underline-offset-4">Call Breakdown</h2>
-          <div className="grid grid-cols-6 gap-3">
-            <BreakdownItem label="Total Calls" value={breakdown.totalCalls} highlight />
-            <BreakdownItem label="Transports" value={breakdown.transports} />
-            <BreakdownItem label="Refusals" value={breakdown.refusals} />
-            <BreakdownItem label="Other" value={breakdown.other} />
-            <BreakdownItem label="Transport %" value={transferPct} isPercentage highlight />
-            <BreakdownItem label="Refusal %" value={refusalPct} isPercentage />
-          </div>
-        </div>
-
-        {/* Calls Table / Audit Log - Folder Tab Navigation */}
-        <div className="print:shadow-none print:border-0">
-          {/* Folder Tabs */}
-          <div className="flex items-end print:hidden">
-            {/* Call Details Tab */}
-            <button
-              onClick={() => setActiveTab('calls')}
-              className={`relative px-6 py-3 font-semibold text-sm rounded-t-lg transition-all border-t-2 border-l border-r ${
-                activeTab === 'calls'
-                  ? 'bg-slate-50 text-slate-800 border-t-[#004437] border-l-slate-300 border-r-slate-300 z-10 -mb-px shadow-md'
-                  : 'bg-slate-300 text-slate-600 hover:bg-slate-200 hover:text-slate-700 border-t-slate-400 border-l-slate-400 border-r-slate-400 -mb-px mr-[-1px]'
-              }`}
-              style={activeTab === 'calls' ? {} : { transform: 'translateY(3px)' }}
-            >
-              Call Details (Priority 1-3)
-              {selectedZone === 'all' && zones.length > 0 ? ' - All Zones' : ''}
-              <span className={`ml-2 text-xs font-normal ${activeTab === 'calls' ? 'text-slate-500' : 'text-slate-500'}`}>
-                {complianceCalls.length}
-              </span>
-            </button>
-
-            {/* Audit Log Tab */}
-            <button
-              onClick={() => setActiveTab('audit')}
-              className={`relative px-6 py-3 font-semibold text-sm rounded-t-lg transition-all border-t-2 border-l border-r ${
-                activeTab === 'audit'
-                  ? 'bg-slate-50 text-slate-800 border-t-[#004437] border-l-slate-300 border-r-slate-300 z-10 -mb-px shadow-md'
-                  : 'bg-slate-300 text-slate-600 hover:bg-slate-200 hover:text-slate-700 border-t-slate-400 border-l-slate-400 border-r-slate-400 -mb-px mr-[-1px]'
-              }`}
-              style={activeTab === 'audit' ? {} : { transform: 'translateY(3px)' }}
-            >
-              Audit Log
-              {(auditLogData.length > 0 || autoExclusionAuditData.length > 0) && (
-                <span className="ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-600 text-white">
-                  {auditLogData.length + autoExclusionAuditData.length}
-                </span>
-              )}
-            </button>
-
-            {/* Spacer to fill rest of tab bar */}
-            <div className="flex-1 border-b border-slate-300 -mb-px"></div>
-          </div>
-
-          {/* Print-only header */}
-          <div className="hidden print:block px-6 py-2 border-b border-slate-200 bg-white">
-            <h2 className="text-base font-semibold text-slate-800">
-              Call Details (Priority 1-3) - {complianceCalls.length} calls
+          )}
+          {/* Call Breakdown */}
+          <div className="bg-slate-50 rounded-xl p-6 mb-6 shadow-xl border border-slate-300 print:hidden">
+            <h2 className="text-lg font-semibold text-slate-700 mb-5 text-center underline decoration-2 decoration-slate-400 underline-offset-4">
+              Call Breakdown
             </h2>
+            <div className="grid grid-cols-6 gap-3">
+              <BreakdownItem label="Total Calls" value={breakdown.totalCalls} highlight />
+              <BreakdownItem label="Transports" value={breakdown.transports} />
+              <BreakdownItem label="Refusals" value={breakdown.refusals} />
+              <BreakdownItem label="Other" value={breakdown.other} />
+              <BreakdownItem label="Transport %" value={transferPct} isPercentage highlight />
+              <BreakdownItem label="Refusal %" value={refusalPct} isPercentage />
+            </div>
           </div>
+          {/* Calls Table / Audit Log - Folder Tab Navigation */}
+          <div className="print:shadow-none print:border-0">
+            {/* Folder Tabs */}
+            <div className="flex items-end print:hidden">
+              {/* Call Details Tab */}
+              <button
+                onClick={() => setActiveTab('calls')}
+                className={`relative px-6 py-3 font-semibold text-sm rounded-t-lg transition-all border-t-2 border-l border-r ${
+                  activeTab === 'calls'
+                    ? 'bg-slate-50 text-slate-800 border-t-[#004437] border-l-slate-300 border-r-slate-300 z-10 -mb-px shadow-md'
+                    : 'bg-slate-300 text-slate-600 hover:bg-slate-200 hover:text-slate-700 border-t-slate-400 border-l-slate-400 border-r-slate-400 -mb-px mr-[-1px]'
+                }`}
+                style={activeTab === 'calls' ? {} : { transform: 'translateY(3px)' }}
+              >
+                Call Details (Priority 1-3)
+                {selectedZone === 'all' && zones.length > 0 ? ' - All Zones' : ''}
+                <span
+                  className={`ml-2 text-xs font-normal ${activeTab === 'calls' ? 'text-slate-500' : 'text-slate-500'}`}
+                >
+                  {complianceCalls.length}
+                </span>
+              </button>
 
-          {/* Tab Content Container */}
-          <div className="bg-slate-50 rounded-b-xl rounded-tr-xl overflow-hidden shadow-xl border border-slate-300 border-t-0 print:rounded-none print:border print:border-slate-200 print:bg-white print:shadow-none">
+              {/* Audit Log Tab */}
+              <button
+                onClick={() => setActiveTab('audit')}
+                className={`relative px-6 py-3 font-semibold text-sm rounded-t-lg transition-all border-t-2 border-l border-r ${
+                  activeTab === 'audit'
+                    ? 'bg-slate-50 text-slate-800 border-t-[#004437] border-l-slate-300 border-r-slate-300 z-10 -mb-px shadow-md'
+                    : 'bg-slate-300 text-slate-600 hover:bg-slate-200 hover:text-slate-700 border-t-slate-400 border-l-slate-400 border-r-slate-400 -mb-px mr-[-1px]'
+                }`}
+                style={activeTab === 'audit' ? {} : { transform: 'translateY(3px)' }}
+              >
+                Audit Log
+                {(auditLogData.length > 0 || autoExclusionAuditData.length > 0) && (
+                  <span className="ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-600 text-white">
+                    {auditLogData.length + autoExclusionAuditData.length}
+                  </span>
+                )}
+              </button>
 
-          {/* Call Details Tab Content */}
-          <div className={`${activeTab === 'calls' ? '' : 'hidden'} print:block`}>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs calls-table">
-              <thead className="bg-slate-50 print:bg-slate-300">
-                <tr>
-                  {reportColumns.map(colId => {
-                    const col = ALL_COLUMNS[colId];
-                    if (!col) return null;
-                    return (
-                      <th key={colId} className="px-1 py-1 text-left font-semibold text-slate-700 whitespace-nowrap">
-                        {col.label}
-                      </th>
-                    );
-                  })}
-                  <th className="px-1 py-1 text-left font-semibold text-slate-700 print:hidden">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {(() => {
-                  const callsToRender = selectedZone === 'all' && zones.length > 0 ? sortedCallsForAllZones : complianceCalls;
-                  let lastZone = null;
-                  const rows = [];
+              {/* Spacer to fill rest of tab bar */}
+              <div className="flex-1 border-b border-slate-300 -mb-px"></div>
+            </div>
+            {/* Print-only header */}
+            <div className="hidden print:block px-6 py-2 border-b border-slate-200 bg-white">
+              <h2 className="text-base font-semibold text-slate-800">
+                Call Details (Priority 1-3) - {complianceCalls.length} calls
+              </h2>
+            </div>
+            {/* Tab Content Container */}
+            <div className="bg-slate-50 rounded-b-xl rounded-tr-xl overflow-hidden shadow-xl border border-slate-300 border-t-0 print:rounded-none print:border print:border-slate-200 print:bg-white print:shadow-none">
+              {/* Call Details Tab Content */}
+              <div className={`${activeTab === 'calls' ? '' : 'hidden'} print:block`}>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs calls-table">
+                    <thead className="bg-slate-50 print:bg-slate-300">
+                      <tr>
+                        {reportColumns.map((colId) => {
+                          const col = ALL_COLUMNS[colId];
+                          if (!col) return null;
+                          return (
+                            <th
+                              key={colId}
+                              className="px-1 py-1 text-left font-semibold text-slate-700 whitespace-nowrap"
+                            >
+                              {col.label}
+                            </th>
+                          );
+                        })}
+                        <th className="px-1 py-1 text-left font-semibold text-slate-700 print:hidden">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {(() => {
+                        const callsToRender =
+                          selectedZone === 'all' && zones.length > 0
+                            ? sortedCallsForAllZones
+                            : complianceCalls;
+                        let lastZone = null;
+                        const rows = [];
 
-                  callsToRender.forEach((call, index) => {
-                    const responseMinutes = calculateResponseTime(call);
-                    const callCompliant = isCallCompliant(call);
-                    const isNonCompliant = callCompliant === false;
-                    const isExcluded = call.is_excluded;
-                    const isConfirmed = call.is_confirmed;
-                    const currentZone = call.response_area;
+                        callsToRender.forEach((call, index) => {
+                          const responseMinutes = calculateResponseTime(call);
+                          const callCompliant = isCallCompliant(call);
+                          const isNonCompliant = callCompliant === false;
+                          const isExcluded = call.is_excluded;
+                          const isConfirmed = call.is_confirmed;
+                          const currentZone = call.response_area;
 
-                    // Insert zone header when zone changes (only when "All Zones" is selected)
-                    if (selectedZone === 'all' && zones.length > 0 && currentZone !== lastZone) {
-                      const zoneCallCount = callsToRender.filter(c => c.response_area === currentZone).length;
-                      rows.push(
-                        <tr key={`zone-header-${currentZone}-${index}`} className="bg-slate-200 print:bg-slate-400">
-                          <td
-                            colSpan={reportColumns.length + 1}
-                            className="px-3 py-2 border-t-2 border-b border-slate-300 print:border-slate-500"
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-3">
-                                <div className="w-1 h-4 bg-slate-500 print:bg-slate-700 rounded"></div>
-                                <span className="font-semibold text-slate-700 print:text-slate-900 text-xs uppercase tracking-wide">
-                                  {formatZoneName(currentZone) || 'Unknown Zone'}
-                                </span>
-                              </div>
-                              <span className="text-xs text-slate-500 print:text-slate-800 font-medium">
-                                {zoneCallCount} call{zoneCallCount !== 1 ? 's' : ''}
-                              </span>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                      lastZone = currentZone;
-                    }
+                          // Insert zone header when zone changes (only when "All Zones" is selected)
+                          if (
+                            selectedZone === 'all' &&
+                            zones.length > 0 &&
+                            currentZone !== lastZone
+                          ) {
+                            const zoneCallCount = callsToRender.filter(
+                              (c) => c.response_area === currentZone
+                            ).length;
+                            rows.push(
+                              <tr
+                                key={`zone-header-${currentZone}-${index}`}
+                                className="bg-slate-200 print:bg-slate-400"
+                              >
+                                <td
+                                  colSpan={reportColumns.length + 1}
+                                  className="px-3 py-2 border-t-2 border-b border-slate-300 print:border-slate-500"
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-1 h-4 bg-slate-500 print:bg-slate-700 rounded"></div>
+                                      <span className="font-semibold text-slate-700 print:text-slate-900 text-xs uppercase tracking-wide">
+                                        {formatZoneName(currentZone) || 'Unknown Zone'}
+                                      </span>
+                                    </div>
+                                    <span className="text-xs text-slate-500 print:text-slate-800 font-medium">
+                                      {zoneCallCount} call{zoneCallCount !== 1 ? 's' : ''}
+                                    </span>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                            lastZone = currentZone;
+                          }
 
-                    rows.push(
-                      <tr
-                        key={call.id}
-                        className={`
+                          rows.push(
+                            <tr
+                              key={call.id}
+                              className={`
                           ${isNonCompliant ? 'bg-red-50 print:bg-red-50' : ''}
                           ${isExcluded ? 'opacity-60' : ''}
                           hover:bg-slate-50
                         `}
-                      >
-                      {reportColumns.map(colId => {
-                        const col = ALL_COLUMNS[colId];
-                        if (!col) return null;
-
-                        // Special handling for response time column - now read-only (calculated from editable time fields)
-                        // To adjust response time, edit the underlying times (Dispatched, On Scene, etc.)
-                        if (col.isResponseTime) {
-                          const hasEdits = call.has_time_edits;
-
-                          return (
-                            <td
-                              key={colId}
-                              className={`px-1 py-0.5 font-semibold whitespace-nowrap ${isNonCompliant ? 'text-red-600' : 'text-green-600'}`}
-                              title={hasEdits ? 'Calculated from edited time fields' : 'Calculated: On Scene − Queue Time'}
                             >
-                              <span className={hasEdits ? 'underline decoration-dotted decoration-blue-400' : ''}>
-                                {formatResponseTime(responseMinutes)}
-                              </span>
-                            </td>
-                          );
-                        }
+                              {reportColumns.map((colId) => {
+                                const col = ALL_COLUMNS[colId];
+                                if (!col) return null;
 
-                        // Special handling for status column
-                        if (col.isStatus) {
-                          return (
-                            <td key={colId} className="px-1 py-0.5 whitespace-nowrap">
-                              {isNonCompliant && (
-                                <>
-                                  {isExcluded ? (
-                                    <button
-                                      onClick={() => setExclusionDetailsModal({ open: true, callId: call.id })}
-                                      className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-red-100 border border-red-300 text-red-700 text-[9px] rounded font-medium hover:bg-red-200 transition-colors cursor-pointer"
-                                      title="View exclusion details"
+                                // Special handling for response time column - now read-only (calculated from editable time fields)
+                                // To adjust response time, edit the underlying times (Dispatched, On Scene, etc.)
+                                if (col.isResponseTime) {
+                                  const hasEdits = call.has_time_edits;
+
+                                  return (
+                                    <td
+                                      key={colId}
+                                      className={`px-1 py-0.5 font-semibold whitespace-nowrap ${isNonCompliant ? 'text-red-600' : 'text-green-600'}`}
+                                      title={
+                                        hasEdits
+                                          ? 'Calculated from edited time fields'
+                                          : 'Calculated: On Scene − Queue Time'
+                                      }
                                     >
-                                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                        <path d="M3 6a3 3 0 013-3h10a1 1 0 01.8 1.6L14.25 8l2.55 3.4A1 1 0 0116 13H6a1 1 0 00-1 1v3a1 1 0 11-2 0V6z"/>
-                                      </svg>
+                                      <span
+                                        className={
+                                          hasEdits
+                                            ? 'underline decoration-dotted decoration-blue-400'
+                                            : ''
+                                        }
+                                      >
+                                        {formatResponseTime(responseMinutes)}
+                                      </span>
+                                    </td>
+                                  );
+                                }
+
+                                // Special handling for status column
+                                if (col.isStatus) {
+                                  return (
+                                    <td key={colId} className="px-1 py-0.5 whitespace-nowrap">
+                                      {isNonCompliant && (
+                                        <>
+                                          {isExcluded ? (
+                                            <button
+                                              onClick={() =>
+                                                setExclusionDetailsModal({
+                                                  open: true,
+                                                  callId: call.id,
+                                                })
+                                              }
+                                              className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-red-100 border border-red-300 text-red-700 text-[9px] rounded font-medium hover:bg-red-200 transition-colors cursor-pointer"
+                                              title="View exclusion details"
+                                            >
+                                              <svg
+                                                className="w-3 h-3"
+                                                fill="currentColor"
+                                                viewBox="0 0 20 20"
+                                              >
+                                                <path d="M3 6a3 3 0 013-3h10a1 1 0 01.8 1.6L14.25 8l2.55 3.4A1 1 0 0116 13H6a1 1 0 00-1 1v3a1 1 0 11-2 0V6z" />
+                                              </svg>
+                                              Excl
+                                            </button>
+                                          ) : isConfirmed ? (
+                                            <span className="px-1 py-0.5 bg-yellow-100 border border-yellow-400 text-red-600 text-[9px] rounded font-medium">
+                                              Conf
+                                            </span>
+                                          ) : null}
+                                        </>
+                                      )}
+                                    </td>
+                                  );
+                                }
+
+                                // Editable time columns (click to edit with reason)
+                                if (col.isEditableTime && col.dbField) {
+                                  const value = col.getValue(call, parseTimeOnly, parseCallNumber);
+                                  const rawValue = call[col.dbField]; // Full value for editing
+                                  const hasEdits = call.has_time_edits;
+                                  return (
+                                    <td
+                                      key={colId}
+                                      className={`px-1 py-0.5 whitespace-nowrap ${col.className || 'text-slate-600'}`}
+                                    >
+                                      <button
+                                        onClick={() =>
+                                          setEditTimeModal({
+                                            open: true,
+                                            callId: call.id,
+                                            field: col.dbField,
+                                            fieldLabel: col.label,
+                                            currentValue: rawValue,
+                                            callData: call,
+                                          })
+                                        }
+                                        className={`hover:bg-slate-100 px-0.5 rounded transition-colors cursor-pointer ${hasEdits ? 'underline decoration-dotted decoration-blue-400' : ''}`}
+                                        title={
+                                          hasEdits
+                                            ? 'This field has been edited (click to edit)'
+                                            : 'Click to edit'
+                                        }
+                                      >
+                                        {value || '—'}
+                                      </button>
+                                    </td>
+                                  );
+                                }
+
+                                // Regular columns
+                                const value = col.getValue(call, parseTimeOnly, parseCallNumber);
+                                // For address column, add title tooltip with full address
+                                const titleAttr = col.title
+                                  ? { title: call.origin_address || '' }
+                                  : {};
+                                return (
+                                  <td
+                                    key={colId}
+                                    className={`px-1 py-0.5 whitespace-nowrap ${col.className || 'text-slate-700'}`}
+                                    {...titleAttr}
+                                  >
+                                    {value}
+                                  </td>
+                                );
+                              })}
+                              <td className="px-1 py-0.5 print:hidden">
+                                {isNonCompliant && !isExcluded && !isConfirmed && (
+                                  <div className="flex gap-0.5">
+                                    <button
+                                      onClick={() =>
+                                        setExclusionModal({ open: true, callId: call.id })
+                                      }
+                                      className="px-1.5 py-0.5 bg-red-600 text-white text-[9px] rounded hover:bg-red-500"
+                                    >
                                       Excl
                                     </button>
-                                  ) : isConfirmed ? (
-                                    <span className="px-1 py-0.5 bg-yellow-100 border border-yellow-400 text-red-600 text-[9px] rounded font-medium">
+                                    <button
+                                      onClick={() => handleConfirm(call.id)}
+                                      className="px-1.5 py-0.5 bg-[#004437] text-white text-[9px] rounded hover:bg-[#003329]"
+                                    >
                                       Conf
-                                    </span>
-                                  ) : null}
-                                </>
-                              )}
-                            </td>
+                                    </button>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
                           );
-                        }
+                        });
 
-                        // Editable time columns (click to edit with reason)
-                        if (col.isEditableTime && col.dbField) {
-                          const value = col.getValue(call, parseTimeOnly, parseCallNumber);
-                          const rawValue = call[col.dbField]; // Full value for editing
-                          const hasEdits = call.has_time_edits;
-                          return (
-                            <td key={colId} className={`px-1 py-0.5 whitespace-nowrap ${col.className || 'text-slate-600'}`}>
-                              <button
-                                onClick={() => setEditTimeModal({
-                                  open: true,
-                                  callId: call.id,
-                                  field: col.dbField,
-                                  fieldLabel: col.label,
-                                  currentValue: rawValue,
-                                  callData: call
-                                })}
-                                className={`hover:bg-slate-100 px-0.5 rounded transition-colors cursor-pointer ${hasEdits ? 'underline decoration-dotted decoration-blue-400' : ''}`}
-                                title={hasEdits ? 'This field has been edited (click to edit)' : 'Click to edit'}
-                              >
-                                {value || '—'}
-                              </button>
-                            </td>
-                          );
-                        }
-
-                        // Regular columns
-                        const value = col.getValue(call, parseTimeOnly, parseCallNumber);
-                        // For address column, add title tooltip with full address
-                        const titleAttr = col.title ? { title: call.origin_address || '' } : {};
-                        return (
-                          <td key={colId} className={`px-1 py-0.5 whitespace-nowrap ${col.className || 'text-slate-700'}`} {...titleAttr}>
-                            {value}
-                          </td>
-                        );
-                      })}
-                      <td className="px-1 py-0.5 print:hidden">
-                        {isNonCompliant && !isExcluded && !isConfirmed && (
-                          <div className="flex gap-0.5">
-                            <button
-                              onClick={() => setExclusionModal({ open: true, callId: call.id })}
-                              className="px-1.5 py-0.5 bg-red-600 text-white text-[9px] rounded hover:bg-red-500"
-                            >
-                              Excl
-                            </button>
-                            <button
-                              onClick={() => handleConfirm(call.id)}
-                              className="px-1.5 py-0.5 bg-[#004437] text-white text-[9px] rounded hover:bg-[#003329]"
-                            >
-                              Conf
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                      </tr>
-                    );
-                  });
-
-                  return rows;
-                })()}
-              </tbody>
-            </table>
-          </div>
-          </div> {/* End Call Details Tab Content */}
-
-          {/* Audit Log Tab Content */}
-          <div className={`${activeTab === 'audit' ? '' : 'hidden'} print:block`}>
-            {(auditLogLoading || autoExclusionAuditLoading) ? (
-              <div className="p-8 text-center text-slate-500">
-                Loading audit log...
+                        return rows;
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
+              </div>{' '}
+              {/* End Call Details Tab Content */}
+              {/* Audit Log Tab Content */}
+              <div className={`${activeTab === 'audit' ? '' : 'hidden'} print:block`}>
+                {auditLogLoading || autoExclusionAuditLoading ? (
+                  <div className="p-8 text-center text-slate-500">Loading audit log...</div>
+                ) : auditLogData.length > 0 || autoExclusionAuditData.length > 0 ? (
+                  <AuditLogPanel
+                    callEdits={auditLogData}
+                    autoExclusions={autoExclusionAuditData}
+                    isOpen={true}
+                  />
+                ) : (
+                  <div className="p-8 text-center text-slate-500">
+                    <svg
+                      className="w-12 h-12 mx-auto mb-3 text-slate-300"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                      />
+                    </svg>
+                    <p className="font-medium">No Audit Entries</p>
+                    <p className="text-sm mt-1">
+                      No time edits or auto-exclusions for calls in this date range.
+                    </p>
+                  </div>
+                )}
               </div>
-            ) : (auditLogData.length > 0 || autoExclusionAuditData.length > 0) ? (
-              <AuditLogPanel
-                callEdits={auditLogData}
-                autoExclusions={autoExclusionAuditData}
-                isOpen={true}
-              />
-            ) : (
-              <div className="p-8 text-center text-slate-500">
-                <svg className="w-12 h-12 mx-auto mb-3 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <p className="font-medium">No Audit Entries</p>
-                <p className="text-sm mt-1">No time edits or auto-exclusions for calls in this date range.</p>
-              </div>
-            )}
-          </div>
-
-          </div> {/* End Tab Content Container */}
-        </div> {/* End Folder Tabs container */}
-
-        {/* Bottom padding for scrolling past content */}
-        <div className="h-64 print:h-0"></div>
-      </div>
-      </div> {/* End scrollable content area */}
-
+            </div>{' '}
+            {/* End Tab Content Container */}
+          </div>{' '}
+          {/* End Folder Tabs container */}
+          {/* Bottom padding for scrolling past content */}
+          <div className="h-64 print:h-0"></div>
+        </div>
+      </div>{' '}
+      {/* End scrollable content area */}
       {/* Exclusion Modal */}
       <ExclusionModal
         isOpen={exclusionModal.open}
@@ -2088,17 +2494,15 @@ function CallsPageContent() {
         onClose={() => setExclusionModal({ open: false, callId: null })}
         onExclude={handleExclude}
       />
-
       {/* Exclusion Details Modal - for viewing/editing existing exclusions */}
       <ExclusionDetailsModal
         isOpen={exclusionDetailsModal.open}
         callId={exclusionDetailsModal.callId}
         onClose={() => setExclusionDetailsModal({ open: false, callId: null })}
         onReasonUpdated={(callId, newReason) => {
-          setCalls(calls.map(c => c.id === callId ? { ...c, exclusion_reason: newReason } : c));
+          setCalls(calls.map((c) => (c.id === callId ? { ...c, exclusion_reason: newReason } : c)));
         }}
       />
-
       {/* Edit Time Modal - for editing time fields with required reason */}
       <EditTimeModal
         isOpen={editTimeModal.open}
@@ -2108,21 +2512,31 @@ function CallsPageContent() {
         currentValue={editTimeModal.currentValue}
         callData={editTimeModal.callData}
         userRole={userRole}
-        onClose={() => setEditTimeModal({ open: false, callId: null, field: null, fieldLabel: null, currentValue: null, callData: null })}
+        onClose={() =>
+          setEditTimeModal({
+            open: false,
+            callId: null,
+            field: null,
+            fieldLabel: null,
+            currentValue: null,
+            callData: null,
+          })
+        }
         onSaved={(callId, field, newValue) => {
           // Update the call in local state
-          setCalls(calls.map(c => {
-            if (c.id === callId) {
-              return { ...c, [field]: newValue, has_time_edits: true };
-            }
-            return c;
-          }));
+          setCalls(
+            calls.map((c) => {
+              if (c.id === callId) {
+                return { ...c, [field]: newValue, has_time_edits: true };
+              }
+              return c;
+            })
+          );
           // Refresh audit log
           fetchAuditLog();
         }}
         onToast={showToast}
       />
-
       {/* Toast Notification */}
       <Toast
         message={toast.message}
@@ -2136,13 +2550,14 @@ function CallsPageContent() {
 
 export default function CallsPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-slate-100 flex items-center justify-center">
-        <div className="animate-spin w-12 h-12 border-4 border-[#004437] border-t-transparent rounded-full" />
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-100 flex items-center justify-center">
+          <div className="animate-spin w-12 h-12 border-4 border-[#004437] border-t-transparent rounded-full" />
+        </div>
+      }
+    >
       <CallsPageContent />
     </Suspense>
   );
 }
-

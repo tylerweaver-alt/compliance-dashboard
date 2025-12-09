@@ -11,7 +11,23 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
-    "test": "echo \"No tests configured yet - see CONTRIBUTING.md\" && exit 0"
+    "test": "echo \"No tests configured yet - see CONTRIBUTING.md\" && exit 0",
+    "prepare": "husky",
+    "audit:sql": "tsx scripts/security/audit-sql.ts",
+    "verify:security": "tsx scripts/security/verify-all.ts"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{js,jsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md}": [
+      "prettier --write"
+    ]
   },
   "dependencies": {
     "@sentry/nextjs": "^10.29.0",
@@ -29,7 +45,8 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-leaflet": "^5.0.0",
-    "recharts": "^3.5.1"
+    "recharts": "^3.5.1",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -41,7 +58,11 @@
     "dotenv": "^17.2.3",
     "eslint": "^9",
     "eslint-config-next": "16.0.3",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.2.10",
+    "prettier": "^3.4.2",
     "tailwindcss": "^4",
+    "tsx": "^4.19.2",
     "typescript": "^5"
   }
 }
