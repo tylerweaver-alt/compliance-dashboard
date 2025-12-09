@@ -13,7 +13,7 @@ We take security seriously. If you discover a security vulnerability in this pro
 ### How to Report
 
 1. **Do NOT open a public GitHub issue** for security vulnerabilities.
-2. Email your findings to: **security@acadianambulance.com** (replace with actual security contact)
+2. Email your findings to: **tylerkweaver20@gmail.com** 
 3. Include as much detail as possible:
    - Description of the vulnerability
    - Steps to reproduce
