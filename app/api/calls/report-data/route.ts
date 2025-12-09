@@ -1,6 +1,8 @@
 // app/api/calls/report-data/route.ts
+// Phase 2: Uses canonical counting logic for aggregate stats
 import { NextRequest, NextResponse } from 'next/server';
 import { Pool } from 'pg';
+import { countCallsForParish } from '@/lib/calls/countCalls';
 
 export const runtime = 'nodejs';
 
@@ -85,7 +87,7 @@ type Call = {
   onSceneTime: string;
   departSceneTime: string;
   arrivedDestinationTime: string;
-  queueResponseTime: string;  // The compliance-relevant response time
+  queueResponseTime: string; // The compliance-relevant response time
   compliance: boolean | null;
   isExcluded: boolean;
 };
@@ -97,13 +99,10 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const parishStr = searchParams.get('parish'); // ?parish=<parish_id>
     const startParam = searchParams.get('start'); // optional YYYY-MM-DD
-    const endParam = searchParams.get('end');     // optional YYYY-MM-DD
+    const endParam = searchParams.get('end'); // optional YYYY-MM-DD
 
     if (!parishStr) {
-      return NextResponse.json(
-        { error: 'parish is required (parish_id)' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'parish is required (parish_id)' }, { status: 400 });
     }
 
     const parishId = parseInt(parishStr, 10);
@@ -138,26 +137,22 @@ export async function GET(req: NextRequest) {
     );
 
     if (parishRes.rowCount === 0) {
-      return NextResponse.json(
-        { error: `No parish found with id ${parishId}` },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: `No parish found with id ${parishId}` }, { status: 404 });
     }
 
     const parishRow = parishRes.rows[0];
     const parishName = parishRow.name;
     const parishThresholdSeconds = parishRow.global_response_threshold_seconds; // Parish-level fallback
-    const targetAvgSeconds = parishRow.target_average_response_seconds;   // Option B (future)
+    const targetAvgSeconds = parishRow.target_average_response_seconds; // Option B (future)
     const useZones = parishRow.use_zones; // reserved for later
 
     // 1b) Get zone-specific thresholds from response_area_mappings
     const zoneThresholdsRes = await client.query<{
       response_area: string;
       threshold_minutes: number | null;
-    }>(
-      `SELECT response_area, threshold_minutes FROM response_area_mappings WHERE parish_id = $1`,
-      [parishId]
-    );
+    }>(`SELECT response_area, threshold_minutes FROM response_area_mappings WHERE parish_id = $1`, [
+      parishId,
+    ]);
 
     // Build zone threshold lookup (zone name -> threshold in seconds)
     const zoneThresholds: Record<string, number> = {};
@@ -215,7 +210,7 @@ export async function GET(req: NextRequest) {
 
       if (aggRow && aggRow.max_date && aggRow.month_start) {
         // Postgres sends dates as "YYYY-MM-DD"
-        effectiveEnd = aggRow.max_date;      // e.g. 2025-11-25
+        effectiveEnd = aggRow.max_date; // e.g. 2025-11-25
         effectiveStart = aggRow.month_start; // e.g. 2025-11-01
       }
       // If no calls yet, both stay null and we just don't filter by date.
@@ -223,20 +218,17 @@ export async function GET(req: NextRequest) {
 
     // 3) Build WHERE for calls
     const whereClauses: string[] = ['parish_id = $1'];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const params: any[] = [parishId];
     let idx = 2;
 
     if (effectiveStart) {
-      whereClauses.push(
-        `to_date(response_date, 'MM/DD/YYYY') >= $${idx++}`
-      );
+      whereClauses.push(`to_date(response_date, 'MM/DD/YYYY') >= $${idx++}`);
       params.push(effectiveStart);
     }
 
     if (effectiveEnd) {
-      whereClauses.push(
-        `to_date(response_date, 'MM/DD/YYYY') <= $${idx++}`
-      );
+      whereClauses.push(`to_date(response_date, 'MM/DD/YYYY') <= $${idx++}`);
       params.push(effectiveEnd);
     }
 
@@ -283,8 +275,7 @@ export async function GET(req: NextRequest) {
 
     const calls: Call[] = [];
 
-    let compliantCount = 0;
-    let totalWithThreshold = 0;
+    // Track response time for average calculation (canonical counting doesn't provide this)
     let sumResponseSeconds = 0;
     let countResponseSeconds = 0;
 
@@ -327,13 +318,13 @@ export async function GET(req: NextRequest) {
 
       // Compliance vs zone-specific threshold (or parish fallback)
       // Threshold of X minutes means X:59 (add 59 seconds for compliance)
+      // Note: Per-call compliance is still calculated here for individual call display
+      // Aggregate compliance uses canonical counting from countCallsForParish
       let compliance: boolean | null = null;
       const zoneThresholdSecs = getThresholdForZone(responseArea);
       if (zoneThresholdSecs != null && responseSeconds != null) {
         const thresholdWithSeconds = zoneThresholdSecs + 59; // X:59
         compliance = responseSeconds <= thresholdWithSeconds;
-        totalWithThreshold += 1;
-        if (compliance) compliantCount += 1;
       }
 
       // Excluded flag
@@ -358,7 +349,21 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    const totalCalls = calls.length;
+    // =========================================================================
+    // CANONICAL CALL COUNTING (Phase 2 Migration)
+    // Uses lib/calls/countCalls.ts for consistent counting across all views
+    // =========================================================================
+    const canonicalStats = await countCallsForParish(
+      {
+        parishId,
+        startDate: effectiveStart || '',
+        endDate: effectiveEnd || '',
+      },
+      client
+    );
+
+    // Use canonical counts for aggregate stats
+    const totalCalls = canonicalStats.totalCalls;
     const completeCalls = totalCalls;
     const missingForms = 0;
     const cancelledCalls = 0;
@@ -366,13 +371,11 @@ export async function GET(req: NextRequest) {
     const missingCPR = 0;
     const missingSignature = 0;
 
-    // Compliance %
-    let complianceRate = 0;
-    if (totalWithThreshold > 0) {
-      complianceRate = Math.round((compliantCount / totalWithThreshold) * 100);
-    }
+    // Compliance % from canonical counting
+    const complianceRate = Math.round(canonicalStats.compliancePercent);
 
-    // Average response time (seconds + display)
+    // Average response time (seconds + display) - keep existing calculation
+    // since canonical counting doesn't provide average response time
     let avgResponseSeconds: number | null = null;
     let avgResponse = '';
 
@@ -391,8 +394,7 @@ export async function GET(req: NextRequest) {
     if (minDate && maxDate) {
       const startLabel = formatDateForLabel(minDate);
       const endLabel = formatDateForLabel(maxDate);
-      reportPeriod =
-        startLabel === endLabel ? startLabel : `${startLabel} to ${endLabel}`;
+      reportPeriod = startLabel === endLabel ? startLabel : `${startLabel} to ${endLabel}`;
     } else {
       reportPeriod = 'No calls in selected range';
     }
@@ -412,9 +414,12 @@ export async function GET(req: NextRequest) {
       avgTransport,
       complianceRate,
       calls,
+      // Add canonical zone breakdown for reports
+      zones: canonicalStats.zones,
     };
 
     return NextResponse.json(payload);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (err: any) {
     console.error('Error in /api/calls/report-data:', err);
     return NextResponse.json(

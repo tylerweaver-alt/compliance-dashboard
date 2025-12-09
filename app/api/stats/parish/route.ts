@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { query } from '@/lib/db';
+import { query, pool } from '@/lib/db';
 import {
   computeComplianceStats,
   computeResponseTimeDistribution,
   computeDailyTrend,
   computeHourlyVolume,
 } from '@/lib/stats';
+import { countCallsForParish, type ZoneStats } from '@/lib/calls/countCalls';
 
 export const runtime = 'nodejs';
 
@@ -26,10 +27,9 @@ export async function GET(req: NextRequest) {
     }
 
     // Get parish info
-    const parishResult = await query(
-      'SELECT id, name, region FROM parishes WHERE id = $1',
-      [parishId]
-    );
+    const parishResult = await query('SELECT id, name, region FROM parishes WHERE id = $1', [
+      parishId,
+    ]);
     if (parishResult.rows.length === 0) {
       return NextResponse.json({ error: 'Parish not found' }, { status: 404 });
     }
@@ -37,6 +37,7 @@ export async function GET(req: NextRequest) {
 
     // Build filters
     const parishFilter = `parish_id = $1`;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const params: any[] = [parishId];
     let dateFilter = '';
     if (startDate && endDate) {
@@ -100,31 +101,23 @@ export async function GET(req: NextRequest) {
     `;
     const exclusionResult = await query(exclusionSql, params);
 
-    // 4. Zone Breakdown with compliance
-    const zoneSql = `
-      SELECT
-        COALESCE(response_area, 'Unassigned') as zone,
-        COUNT(*) as total,
-        COUNT(*) FILTER (WHERE NOT COALESCE(is_excluded, false)) as active,
-        COUNT(*) FILTER (
-          WHERE (is_excluded = false OR is_excluded IS NULL)
-          AND REPLACE(priority, '0', '') IN ('1', '2', '3')
-          AND compliance_time_minutes IS NOT NULL
-          AND compliance_time_minutes <= COALESCE(threshold_minutes, 12)
-        ) as compliant,
-        COUNT(*) FILTER (
-          WHERE (is_excluded = false OR is_excluded IS NULL)
-          AND REPLACE(priority, '0', '') IN ('1', '2', '3')
-          AND compliance_time_minutes IS NOT NULL
-        ) as evaluated
-      FROM calls
-      WHERE parish_id = $1 ${dateFilter}
-        AND arrived_at_scene_time IS NOT NULL
-        AND REPLACE(priority, '0', '') IN ('1', '2', '3')
-      GROUP BY response_area
-      ORDER BY total DESC
-    `;
-    const zoneResult = await query(zoneSql, params);
+    // 4. Zone Breakdown with compliance - using canonical counting logic
+    // Phase 2: Uses lib/calls/countCalls.ts for consistent counting
+    const client = await pool.connect();
+    let canonicalZones: ZoneStats[] = [];
+    try {
+      const canonicalStats = await countCallsForParish(
+        {
+          parishId,
+          startDate: startDate || '',
+          endDate: endDate || '',
+        },
+        client
+      );
+      canonicalZones = canonicalStats.zones || [];
+    } finally {
+      client.release();
+    }
 
     // Calculate transfusal rate: totalCalls / (transports + refusals)
     const totalCalls = parseInt(outcomes.total_calls) || 0;
@@ -137,7 +130,7 @@ export async function GET(req: NextRequest) {
     const peakHours = [...hourlyVolume]
       .sort((a, b) => b.callCount - a.callCount)
       .slice(0, 3)
-      .map(h => ({
+      .map((h) => ({
         hour: h.hour,
         label: `${h.hour.toString().padStart(2, '0')}:00`,
         callCount: h.callCount,
@@ -162,22 +155,30 @@ export async function GET(req: NextRequest) {
       dailyTrend,
       hourlyVolume,
       peakHours,
-      hospitals: hospitalResult.rows.map((r: any) => ({ name: r.hospital, count: parseInt(r.count) })),
-      exclusions: exclusionResult.rows.map((r: any) => ({ reason: r.reason, count: parseInt(r.count) })),
-      zones: zoneResult.rows.map((r: any) => {
-        const evaluated = parseInt(r.evaluated) || 0;
-        const compliant = parseInt(r.compliant) || 0;
-        return {
-          name: r.zone,
-          total: parseInt(r.total),
-          active: parseInt(r.active),
-          compliancePercent: evaluated > 0 ? Math.round((compliant / evaluated) * 10000) / 100 : null,
-        };
-      }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      hospitals: hospitalResult.rows.map((r: any) => ({
+        name: r.hospital,
+        count: parseInt(r.count),
+      })),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      exclusions: exclusionResult.rows.map((r: any) => ({
+        reason: r.reason,
+        count: parseInt(r.count),
+      })),
+      // Zone breakdown using canonical counting logic
+      zones: canonicalZones.map((z: ZoneStats) => ({
+        name: z.zoneName,
+        total: z.totalCalls,
+        active: z.totalCalls, // Canonical counting already excludes is_excluded calls
+        compliancePercent: z.compliancePercent,
+      })),
     });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (err: any) {
     console.error('Error fetching parish stats:', err);
-    return NextResponse.json({ error: 'Failed to fetch stats', details: err.message }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to fetch stats', details: err.message },
+      { status: 500 }
+    );
   }
 }
-

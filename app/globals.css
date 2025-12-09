@@ -36,6 +36,11 @@ body {
   overflow: hidden;
 }
 
+/* Allow scrolling on specific pages that need it */
+body:has(.cadalytix-page) {
+  overflow: auto;
+}
+
 /* Login Page Styles */
 .login-page {
   position: fixed;
