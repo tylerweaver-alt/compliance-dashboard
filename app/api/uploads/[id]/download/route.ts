@@ -1,10 +1,6 @@
-import { Pool } from "pg";
+import { pool } from "@/lib/db";
 
 export const runtime = "nodejs";
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
 
 interface RouteParams {
   params: Promise<{ id: string }>;

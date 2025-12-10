@@ -7,6 +7,7 @@ export async function GET() {
   try {
     await requireAdminSession();
 
+    // Exclude internal staff from client-facing user list
     const { rows } = await query(
       `SELECT
          id,
@@ -21,6 +22,7 @@ export async function GET() {
          created_at,
          updated_at
        FROM users
+       WHERE COALESCE(is_internal, false) = false
        ORDER BY email`
     );
 

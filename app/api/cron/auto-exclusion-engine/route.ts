@@ -17,6 +17,7 @@
 
 import { NextResponse } from 'next/server';
 import { processUnevaluatedCalls, getUnevaluatedCallCount } from '@/lib/autoExclusions';
+import { logCronEvent } from '@/lib/sysadmin/log';
 
 // Maximum calls to process per cron run (to avoid timeouts)
 const MAX_CALLS_PER_RUN = 500;
@@ -26,17 +27,21 @@ export async function GET(request: Request) {
     // Verify the request is from Vercel Cron
     const authHeader = request.headers.get('authorization');
     const cronSecret = process.env.CRON_SECRET;
+    const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production';
 
-    if (cronSecret) {
-      if (authHeader !== `Bearer ${cronSecret}`) {
-        console.error('[Cron] Unauthorized request');
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-      }
-    } else {
-      console.warn('[Cron] CRON_SECRET not set - endpoint is unprotected');
+    // SECURITY: CRON_SECRET is required in production - no exceptions
+    if (isProduction && !cronSecret) {
+      console.error('[Cron] CRON_SECRET not set in production - rejecting request');
+      return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 });
+    }
+
+    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+      console.error('[Cron] Unauthorized request');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     console.log('[Cron] Auto-exclusion engine starting...');
+    await logCronEvent('START', 'AUTO_EXCLUSION_ENGINE');
 
     // Get count of unevaluated calls before processing
     const unevaluatedCount = await getUnevaluatedCallCount();
@@ -68,6 +73,16 @@ export async function GET(request: Request) {
     // Check if there are still more calls to process
     const remainingCount = await getUnevaluatedCallCount();
 
+    // Log completion
+    await logCronEvent('COMPLETE', 'AUTO_EXCLUSION_ENGINE', {
+      unevaluatedBefore: unevaluatedCount,
+      processed: result.totalProcessed,
+      excluded: result.excluded,
+      notExcluded: result.notExcluded,
+      errors: result.errors,
+      remaining: remainingCount,
+    });
+
     return NextResponse.json({
       success: true,
       message: result.totalProcessed > 0 
@@ -85,10 +100,15 @@ export async function GET(request: Request) {
 
   } catch (error) {
     console.error('[Cron] Auto-exclusion engine failed:', error);
-    
+
+    // Log failure
+    await logCronEvent('FAILURE', 'AUTO_EXCLUSION_ENGINE', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+
     return NextResponse.json(
-      { 
-        success: false, 
+      {
+        success: false,
         error: 'Internal server error',
         message: error instanceof Error ? error.message : 'Unknown error'
       },

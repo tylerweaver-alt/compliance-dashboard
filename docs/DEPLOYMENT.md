@@ -15,7 +15,6 @@
   - `NEXTAUTH_SECRET`
   - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`
   - `ORS_API_KEY`, `GEOAPIFY_API_KEY`, `BLOB_READ_WRITE_TOKEN` as needed
-  - Optional dev-only flags: `DEV_BYPASS_AUTH`, `LOCAL_DEV_BYPASS` (must remain off in staging/production)
 
 ## Database setup
 - Point `DATABASE_URL` to the Neon instance; SSL is required, with `rejectUnauthorized` disabled for Neon compatibility.

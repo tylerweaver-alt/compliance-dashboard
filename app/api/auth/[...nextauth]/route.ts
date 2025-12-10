@@ -1,20 +1,12 @@
 /**
  * NextAuth configuration for the compliance dashboard.
- * Handles Google auth, Neon user lookup, audit events, and guarded dev bypass.
+ * Handles Google auth, Neon user lookup, and audit events.
  */
 
 import NextAuth, { NextAuthOptions, User } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
-import { Pool } from 'pg';
-
-// ============================================================================
-// DATABASE CONNECTION
-// ============================================================================
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-});
+import { pool } from '@/lib/db';
+import { logAuthEvent } from '@/lib/audit/logAuditEvent';
 
 // ============================================================================
 // HELPER: Look up user in Neon Postgres
@@ -28,6 +20,8 @@ interface DbUser {
   role: string;
   is_active: boolean;
   is_admin: boolean;
+  is_superadmin: boolean;
+  is_internal: boolean;
   allowed_regions: string[];
   has_all_regions: boolean;
 }
@@ -37,7 +31,10 @@ async function getUserFromDb(email: string): Promise<DbUser | null> {
     const client = await pool.connect();
     try {
       const result = await client.query<DbUser>(
-        `SELECT id, email, full_name, display_name, role, is_active, is_admin, allowed_regions, has_all_regions
+        `SELECT id, email, full_name, display_name, role, is_active, is_admin,
+                COALESCE(is_superadmin, false) as is_superadmin,
+                COALESCE(is_internal, false) as is_internal,
+                allowed_regions, has_all_regions
          FROM users
          WHERE LOWER(email) = LOWER($1)
          LIMIT 1`,
@@ -54,50 +51,60 @@ async function getUserFromDb(email: string): Promise<DbUser | null> {
 }
 
 // ============================================================================
-// DEV-ONLY FAILSAFE
-// Only active when BOTH:
-//   1. NODE_ENV === 'development'
-//   2. LOCAL_DEV_BYPASS === '1'
-// This should never be enabled in staging/production. A runtime assertion below
-// will throw if the flag is present in non-local environments.
+// EXTERNAL ALLOWLIST & INTERNAL STAFF
 // ============================================================================
 
-const DEV_BYPASS_EMAIL = 'tyler.weaver@acadian.com';
-const LOCAL_DEV_BYPASS_ENABLED = process.env.LOCAL_DEV_BYPASS === '1';
+// OWNER EXCEPTION: jrc7192@gmail.com is explicitly allowed regardless of domain
+// This is intentional and must be preserved in any auth tightening
+const OWNER_EXCEPTION_EMAIL = 'jrc7192@gmail.com';
 
-function assertSafeDevBypass() {
-  if (!LOCAL_DEV_BYPASS_ENABLED) return;
+// INTERNAL STAFF: These emails are treated as internal users, not client users.
+// They will have is_internal = true in the database and be excluded from
+// client-facing admin user lists.
+const INTERNAL_EMAILS = new Set<string>([
+  'tyler.weaver@acadian.com',
+  'jrc7192@gmail.com',
+]);
 
-  const nodeEnv = process.env.NODE_ENV;
-  const vercelEnv = process.env.VERCEL_ENV;
-
-  // Block the flag in non-development environments
-  if (nodeEnv && nodeEnv !== 'development') {
-    throw new Error('LOCAL_DEV_BYPASS=1 is not allowed when NODE_ENV is not development');
-  }
-  if (vercelEnv && vercelEnv !== 'development' && vercelEnv !== 'dev' && vercelEnv !== 'local') {
-    throw new Error(`LOCAL_DEV_BYPASS=1 is not allowed when VERCEL_ENV=${vercelEnv}`);
-  }
-}
-
-assertSafeDevBypass();
-
-function isDevBypassEnabled(): boolean {
-  return process.env.NODE_ENV === 'development' && LOCAL_DEV_BYPASS_ENABLED;
-}
-
-function getDevBypassUser(): DbUser {
+/**
+ * Fallback user for owner exception when DB lookup fails.
+ * This is a safety net - the user should normally exist in the database.
+ */
+function getOwnerExceptionUser(): DbUser {
   return {
-    id: 'dev-bypass-user',
-    email: DEV_BYPASS_EMAIL,
-    full_name: 'Tyler Weaver (Dev Bypass)',
-    display_name: 'Tyler Weaver',
+    id: 'owner-exception-user',
+    email: OWNER_EXCEPTION_EMAIL,
+    full_name: 'Jake Chaumont (Owner)',
+    display_name: 'Jake Chaumont',
     role: 'admin',
     is_active: true,
     is_admin: true,
+    is_superadmin: true,
+    is_internal: true,
     allowed_regions: [],
     has_all_regions: true,
   };
+}
+
+/**
+ * Update a user's is_internal flag if needed.
+ * Called during sign-in for known internal emails.
+ */
+async function ensureIsInternal(email: string): Promise<void> {
+  try {
+    const client = await pool.connect();
+    try {
+      await client.query(
+        `UPDATE users SET is_internal = true, updated_at = now()
+         WHERE LOWER(email) = LOWER($1) AND is_internal = false`,
+        [email]
+      );
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('[NextAuth] Failed to update is_internal:', error);
+  }
 }
 
 // ============================================================================
@@ -114,6 +121,34 @@ export const authOptions: NextAuthOptions = {
 
   callbacks: {
     /**
+     * jwt callback - runs when JWT is created or updated
+     * Store is_superadmin and is_internal in the token so middleware can access it
+     */
+    async jwt({ token, user, trigger }) {
+      // On initial sign-in, look up user in DB to get is_superadmin, is_internal, etc.
+      if (trigger === 'signIn' && token.email) {
+        const email = token.email.toLowerCase();
+        const dbUser = await getUserFromDb(email);
+
+        if (dbUser) {
+          token.is_superadmin = dbUser.is_superadmin;
+          token.is_admin = dbUser.is_admin;
+          token.is_internal = dbUser.is_internal;
+          token.role = dbUser.role;
+          token.allowed_regions = dbUser.allowed_regions;
+          token.has_all_regions = dbUser.has_all_regions;
+        } else if (email === OWNER_EXCEPTION_EMAIL.toLowerCase()) {
+          // Fallback for owner exception if DB lookup fails
+          token.is_superadmin = true;
+          token.is_admin = true;
+          token.is_internal = true;
+        }
+      }
+
+      return token;
+    },
+
+    /**
      * signIn callback - runs when user attempts to sign in
      * Return true to allow, false to deny, or a URL to redirect
      */
@@ -126,8 +161,9 @@ export const authOptions: NextAuthOptions = {
         return false;
       }
 
-      // 2. Must be @acadian.com domain
-      if (!email.endsWith('@acadian.com')) {
+      // 2. Must be @acadian.com domain OR owner exception
+      const isOwnerException = email === OWNER_EXCEPTION_EMAIL.toLowerCase();
+      if (!email.endsWith('@acadian.com') && !isOwnerException) {
         console.warn(`[NextAuth] Sign-in denied: Non-Acadian email (${email})`);
         return false;
       }
@@ -137,13 +173,18 @@ export const authOptions: NextAuthOptions = {
 
       // 4. If user found and active, allow
       if (dbUser && dbUser.is_active) {
+        // 4a. If this is a known internal email but is_internal is false, update it
+        if (INTERNAL_EMAILS.has(email) && !dbUser.is_internal) {
+          await ensureIsInternal(email);
+        }
         console.log(`[NextAuth] Sign-in allowed: ${email} (role: ${dbUser.role})`);
         return true;
       }
 
-      // 5. DEV FAILSAFE: Allow tyler.weaver@acadian.com even if DB lookup fails
-      if (isDevBypassEnabled() && email === DEV_BYPASS_EMAIL) {
-        console.warn(`[NextAuth] DEV BYPASS: Allowing ${email} despite DB issues`);
+      // 5. OWNER EXCEPTION: Allow jrc7192@gmail.com even if not in DB
+      // This user should be in the DB, but this is a safety net
+      if (isOwnerException) {
+        console.log(`[NextAuth] OWNER EXCEPTION: Allowing ${email}`);
         return true;
       }
 
@@ -165,10 +206,11 @@ export const authOptions: NextAuthOptions = {
         const email = session.user.email.toLowerCase();
         let dbUser = await getUserFromDb(email);
 
-        // DEV FAILSAFE: Use bypass user if DB lookup fails
-        if (!dbUser && isDevBypassEnabled() && email === DEV_BYPASS_EMAIL) {
-          console.warn('[NextAuth] DEV BYPASS: Using fallback user for session');
-          dbUser = getDevBypassUser();
+        // OWNER EXCEPTION: Use fallback if DB lookup fails
+        // This is a safety net - the user should normally exist in the database
+        if (!dbUser && email === OWNER_EXCEPTION_EMAIL.toLowerCase()) {
+          console.log('[NextAuth] OWNER EXCEPTION: Using fallback user for session');
+          dbUser = getOwnerExceptionUser();
         }
 
         if (dbUser) {
@@ -177,6 +219,8 @@ export const authOptions: NextAuthOptions = {
           session.user.allowed_regions = dbUser.allowed_regions;
           session.user.has_all_regions = dbUser.has_all_regions;
           session.user.is_admin = dbUser.is_admin;
+          session.user.is_superadmin = dbUser.is_superadmin;
+          session.user.is_internal = dbUser.is_internal;
           session.user.display_name = dbUser.display_name || dbUser.full_name || session.user.name;
         }
       }
@@ -193,39 +237,21 @@ export const authOptions: NextAuthOptions = {
     /**
      * signIn event - fires after successful sign-in
      */
-    async signIn({ user, account, profile, isNewUser }) {
+    async signIn({ user, account, isNewUser }) {
       try {
         const email = user.email?.toLowerCase();
         if (!email) return;
 
-        // Get user ID from database for audit logging
+        // Get user info from database for audit logging
         const dbUser = await getUserFromDb(email);
-        const userId = dbUser?.id || null;
 
-        // Log the login event directly to audit_logs
-        const client = await pool.connect();
-        try {
-          await client.query(
-            `INSERT INTO audit_logs (actor_user_id, actor_email, action, target_type, target_id, summary, metadata)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-            [
-              userId,
-              email,
-              'LOGIN',
-              'session',
-              email,
-              `User ${email} logged in via ${account?.provider || 'unknown'}`,
-              JSON.stringify({
-                provider: account?.provider,
-                is_new_user: isNewUser,
-                role: dbUser?.role,
-              }),
-            ]
-          );
-        } finally {
-          client.release();
-        }
-        console.log(`[Audit] LOGIN: ${email}`);
+        // Use centralized audit logging
+        await logAuthEvent('LOGIN_SUCCESS', email, {
+          provider: account?.provider,
+          is_new_user: isNewUser,
+          role: dbUser?.role,
+          user_id: dbUser?.id,
+        });
       } catch (err) {
         console.error('[Audit] Failed to log LOGIN event:', err);
       }
@@ -239,30 +265,8 @@ export const authOptions: NextAuthOptions = {
         const email = (token?.email as string)?.toLowerCase();
         if (!email) return;
 
-        // Get user ID from database for audit logging
-        const dbUser = await getUserFromDb(email);
-        const userId = dbUser?.id || null;
-
-        // Log the logout event directly to audit_logs
-        const client = await pool.connect();
-        try {
-          await client.query(
-            `INSERT INTO audit_logs (actor_user_id, actor_email, action, target_type, target_id, summary, metadata)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-            [
-              userId,
-              email,
-              'LOGOUT',
-              'session',
-              email,
-              `User ${email} logged out`,
-              JSON.stringify({}),
-            ]
-          );
-        } finally {
-          client.release();
-        }
-        console.log(`[Audit] LOGOUT: ${email}`);
+        // Use centralized audit logging
+        await logAuthEvent('LOGOUT', email, {});
       } catch (err) {
         console.error('[Audit] Failed to log LOGOUT event:', err);
       }

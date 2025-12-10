@@ -2,15 +2,10 @@
 // Authenticated read API for call records with optional date filtering.
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { Pool } from 'pg';
+import { pool } from '@/lib/db';
 import { authOptions } from '../auth/[...nextauth]/route';
 
 export const runtime = 'nodejs';
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-});
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);

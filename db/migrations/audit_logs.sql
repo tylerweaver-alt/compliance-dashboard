@@ -1,21 +1,25 @@
--- Migration: Create audit_logs table
+-- Migration: Create audit_logs table (matches existing production schema)
 -- Run this in the Neon SQL Editor
+-- NOTE: This table already exists in production with the schema below.
+-- This migration is for reference/new environments only.
 
 CREATE TABLE IF NOT EXISTS audit_logs (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  timestamp     timestamptz NOT NULL DEFAULT now(),
-  actor_user_id uuid,
+  created_at    timestamptz NOT NULL DEFAULT now(),
   actor_email   text,
-  action        text NOT NULL,          -- e.g. "USER_UPSERT", "USER_UPDATE", "REGION_CREATE"
-  target_type   text NOT NULL,          -- e.g. "user", "region", "area", "upload"
-  target_id     text,                   -- uuid or other identifier stored as text
-  summary       text,                   -- short human-readable description
-  metadata      jsonb,                  -- optional extra details
-  created_at    timestamptz NOT NULL DEFAULT now()
+  actor_role    text,
+  category      text NOT NULL,          -- e.g. "AUTH", "CALLS", "EXCLUSIONS", "SYSTEM"
+  action        text NOT NULL,          -- e.g. "LOGIN_SUCCESS", "CSV_UPLOAD", "SYSADMIN_ACCESS_DENIED"
+  target_email  text,                   -- target user email (for user-related actions)
+  target_id     uuid,                   -- uuid of target entity
+  details       jsonb                   -- flexible metadata (actor_user_id, target_type, etc.)
 );
 
--- Index for faster queries by timestamp (most common query pattern)
-CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs (timestamp DESC);
+-- Index for faster queries by created_at (most common query pattern)
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs (created_at DESC);
+
+-- Index for filtering by category
+CREATE INDEX IF NOT EXISTS idx_audit_logs_category ON audit_logs (category);
 
 -- Index for filtering by action type
 CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs (action);

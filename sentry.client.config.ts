@@ -4,8 +4,8 @@ import * as Sentry from "@sentry/nextjs";
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
 
-  // PII: you can switch this to false later if IT wants no default PII
-  sendDefaultPii: true,
+  // SECURITY: Do not send PII (emails, user details) by default
+  sendDefaultPii: false,
 
   // Integrations: Performance (Tracing) + Session Replay
   integrations: [
@@ -13,8 +13,8 @@ Sentry.init({
     Sentry.replayIntegration(),
   ],
 
-  // Tracing
-  tracesSampleRate: 1.0, // 100% in dev; lower this (e.g. 0.1) in prod
+  // Tracing: 10% in production, 100% in dev
+  tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
 
   // Where to propagate tracing headers
   tracePropagationTargets: [

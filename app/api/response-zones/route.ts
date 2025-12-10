@@ -1,13 +1,8 @@
 // app/api/response-zones/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { Pool } from 'pg';
+import { pool } from '@/lib/db';
 
 export const runtime = 'nodejs';
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-});
 
 // GET /api/response-zones?parish_id=7 - Get all zones for a parish
 export async function GET(req: NextRequest) {

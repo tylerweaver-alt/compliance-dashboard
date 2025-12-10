@@ -4,6 +4,8 @@ import { getServerSession } from "next-auth";
 import { parse } from "csv-parse/sync";
 import { authOptions } from "../auth/[...nextauth]/route";
 import { pool } from "@/lib/db";
+import { batchInsert } from "@/lib/db-batch";
+import { logAuditEvent } from "@/lib/audit/logAuditEvent";
 
 export const runtime = "nodejs";
 
@@ -273,44 +275,44 @@ export async function POST(req: NextRequest) {
 
     uploadId = uploadRes.rows[0].id as string;
 
-    let rowsInserted = 0;
-    for (const c of calls) {
+    // Convert parsed calls to row arrays for batch insert
+    const callRows = calls.map((c) => {
       const { callSequence } = parseIncidentParts(c.incident_number);
-      await client.query(
-        `
-        insert into calls (
-          parish_id,
-          incident_number,
-          incident_key,
-          call_date,
-          call_sequence,
-          origin_address,
-          origin_city,
-          start_time,
-          at_scene_time,
-          response_seconds,
-          uploaded_from_id,
-          uploaded_by_user_id
-        )
-        values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12);
-        `,
-        [
-          parishId,
-          c.incident_number,
-          c.incident_number,
-          c.call_date,
-          callSequence,
-          c.origin_address,
-          c.origin_city,
-          c.start_time,
-          c.at_scene_time,
-          c.response_seconds,
-          uploadId,
-          adminCheck.user.id ?? null,
-        ]
-      );
-      rowsInserted++;
-    }
+      return [
+        parishId,
+        c.incident_number,
+        c.incident_number, // incident_key
+        c.call_date,
+        callSequence,
+        c.origin_address,
+        c.origin_city,
+        c.start_time,
+        c.at_scene_time,
+        c.response_seconds,
+        uploadId,
+        adminCheck.user.id ?? null,
+      ];
+    });
+
+    // Use batch insert for efficiency (C5 fix)
+    const rowsInserted = await batchInsert(client, {
+      table: 'calls',
+      columns: [
+        'parish_id',
+        'incident_number',
+        'incident_key',
+        'call_date',
+        'call_sequence',
+        'origin_address',
+        'origin_city',
+        'start_time',
+        'at_scene_time',
+        'response_seconds',
+        'uploaded_from_id',
+        'uploaded_by_user_id',
+      ],
+      batchSize: 500,
+    }, callRows);
 
     await client.query(
       `
@@ -322,6 +324,24 @@ export async function POST(req: NextRequest) {
     );
 
     await client.query("COMMIT");
+
+    // Log the upload to audit log
+    await logAuditEvent({
+      actorEmail: adminCheck.user.email ?? null,
+      actorUserId: adminCheck.user.id ?? null,
+      category: 'CALLS',
+      action: 'CSV_UPLOAD',
+      targetType: 'parish',
+      targetId: parishId,
+      details: {
+        uploadId,
+        filename,
+        rowsInserted,
+        rowsParsed: calls.length,
+        dataMonth,
+        dataYear,
+      },
+    });
 
     return NextResponse.json(
       {

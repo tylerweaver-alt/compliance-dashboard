@@ -34,6 +34,12 @@ const pool = new Pool({
   ssl: {
     rejectUnauthorized: false, // Neon uses SSL
   },
+  // Connection pool limits (aligned with Neon connection limits)
+  max: 10,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000,
+  // Query timeout to prevent long-running queries from blocking
+  statement_timeout: 30000,
 });
 
 export { pool };

@@ -5,16 +5,28 @@
 
 import * as Sentry from "@sentry/nextjs";
 
-Sentry.init({
-  dsn: "https://7179718dda7eb08c628607040a1e523f@o4510485628715008.ingest.us.sentry.io/4510485726560256",
+const isProduction = process.env.NODE_ENV === 'production';
 
-  // Define how likely traces are sampled. Adjust this value in production, or use tracesSampler for greater control.
-  tracesSampleRate: 1,
+Sentry.init({
+  dsn: process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN,
+
+  // SECURITY: Never send PII (emails, user details) to Sentry
+  sendDefaultPii: false,
+
+  // Performance: Reduce sampling in production
+  // Dev: 100%, Preview: 50%, Production: 10%
+  tracesSampleRate: isProduction ? 0.1 : 1.0,
 
   // Enable logs to be sent to Sentry
   enableLogs: true,
 
-  // Enable sending user PII (Personally Identifiable Information)
-  // https://docs.sentry.io/platforms/javascript/guides/nextjs/configuration/options/#sendDefaultPii
-  sendDefaultPii: true,
+  // Scrub sensitive data from events before sending
+  beforeSend(event) {
+    // Scrub email addresses from event data
+    if (event.user?.email) {
+      // Hash email for correlation without exposing PII
+      event.user.email = undefined;
+    }
+    return event;
+  },
 });

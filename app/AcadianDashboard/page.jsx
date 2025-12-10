@@ -665,6 +665,9 @@ function Dashboard({ user, onLogout }) {
   const isAdmin = user?.is_admin === true || (user?.role && ADMIN_ROLES.includes(user.role));
   const canAccessHeatmapSettings = user?.role && HEATMAP_SETTINGS_ROLES.includes(user.role);
 
+  // Check if user is a SuperAdmin (can access /sysadmin) - now uses DB column
+  const isSuperAdmin = user?.is_superadmin === true;
+
   // Check if Dev Logs feature is enabled and user has access
   const DEV_LOGS_ROLES = ['admin', 'superadmin', 'dev', 'Admin', 'SuperAdmin', 'Dev'];
   const canAccessDevLogs =
@@ -1073,6 +1076,27 @@ function Dashboard({ user, onLogout }) {
                       Admin Settings
                     </button>
                   </>
+                )}
+
+                {/* Sysadmin button - only visible to SuperAdmin users */}
+                {isSuperAdmin && (
+                  <button
+                    onClick={() => {
+                      setUserMenuOpen(false);
+                      router.push('/sysadmin');
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm font-bold text-red-600 hover:bg-red-50 flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                      />
+                    </svg>
+                    🔒 Sysadmin Console
+                  </button>
                 )}
 
                 {/* TODO (CADalytix): For VP+ roles, add a "CADalytix Scores" global view here.
@@ -1814,6 +1838,7 @@ export default function AcadianDashboardPage() {
     allowed_regions: session.user?.allowed_regions || [],
     has_all_regions: session.user?.has_all_regions || false,
     is_admin: session.user?.is_admin || false,
+    is_superadmin: session.user?.is_superadmin || false,
   };
 
   // Otherwise show dashboard

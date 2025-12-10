@@ -1,12 +1,8 @@
 // app/api/parish-settings/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { Pool } from 'pg';
+import { pool } from '@/lib/db';
 
 export const runtime = 'nodejs';
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
 
 // Default report columns: Date, Call#, Unit, Address, Received, Dispatched, Enroute, Staged, On Scene, Depart, Arrived, Available, Response, Status
 const DEFAULT_REPORT_COLUMNS = [

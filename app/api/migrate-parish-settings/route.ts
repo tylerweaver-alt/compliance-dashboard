@@ -1,13 +1,8 @@
 // app/api/migrate-parish-settings/route.ts
 import { NextResponse } from 'next/server';
-import { Pool } from 'pg';
+import { pool } from '@/lib/db';
 
 export const runtime = 'nodejs';
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-});
 
 // Default report columns
 const DEFAULT_REPORT_COLUMNS = [

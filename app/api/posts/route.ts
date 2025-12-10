@@ -7,29 +7,12 @@ import { query } from '@/lib/db';
 export const runtime = 'nodejs';
 
 // GET /api/posts?region_id=CENLA - Get all posts for a region
+// NOTE: Table creation moved to db/migrations/20251210_coverage_tables.sql (H5 fix)
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const regionId = searchParams.get('region_id');
 
   try {
-    // Check if posts table exists, create if not
-    await query(`
-      CREATE TABLE IF NOT EXISTS coverage_posts (
-        id SERIAL PRIMARY KEY,
-        region_id VARCHAR(50) NOT NULL,
-        name VARCHAR(255) NOT NULL,
-        address TEXT,
-        intersection TEXT,
-        lat DECIMAL(10, 6),
-        lng DECIMAL(10, 6),
-        default_units INTEGER DEFAULT 1,
-        is_active BOOLEAN DEFAULT true,
-        coverage_level INTEGER DEFAULT 4,
-        created_at TIMESTAMP DEFAULT NOW(),
-        updated_at TIMESTAMP DEFAULT NOW()
-      )
-    `);
-
     let sql = `
       SELECT id, region_id, name, address, intersection, lat, lng,
              default_units, is_active, coverage_level

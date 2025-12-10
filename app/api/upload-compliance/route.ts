@@ -47,6 +47,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '../auth/[...nextauth]/route';
 import { logAuditEvent } from '../admin/_audit';
 import { triggerBatchAsyncEvaluation } from '@/lib/autoExclusions';
+import { logUploadEvent } from '@/lib/sysadmin/log';
 
 export const runtime = 'nodejs';
 
@@ -373,6 +374,14 @@ export async function POST(req: NextRequest) {
       // Don't fail the upload if audit logging fails
     }
 
+    // Log to sysadmin_log for system monitoring
+    await logUploadEvent(true, sessionUser?.email || 'unknown', file.name, {
+      regionId,
+      totalRows: records.length,
+      processed: totalProcessed,
+      errors,
+    });
+
     return NextResponse.json({
       ok: true,
       testMode: false,
@@ -388,6 +397,12 @@ export async function POST(req: NextRequest) {
 
   } catch (err: any) {
     console.error('upload-compliance error:', err);
+
+    // Log upload failure to sysadmin_log
+    await logUploadEvent(false, 'unknown', 'unknown', {
+      error: err.message,
+    });
+
     return NextResponse.json(
       { error: 'Server error processing file', details: err.message },
       { status: 500 }

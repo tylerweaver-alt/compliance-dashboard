@@ -1,13 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Pool } from 'pg';
+import { pool } from '@/lib/db';
 import { countCallsForParish, type ZoneStats } from '@/lib/calls/countCalls';
 
 export const runtime = 'nodejs';
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-});
 
 export async function GET(req: NextRequest) {
   const client = await pool.connect();

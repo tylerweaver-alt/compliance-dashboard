@@ -17,23 +17,24 @@ export async function GET(req: Request) {
     const { rows } = await query(
       `SELECT
          id,
-         timestamp,
-         actor_user_id,
+         created_at,
          actor_email,
+         actor_role,
+         category,
          action,
-         target_type,
+         target_email,
          target_id,
-         summary,
-         metadata
+         details
        FROM audit_logs
-       ORDER BY timestamp DESC
+       ORDER BY created_at DESC
        LIMIT $1 OFFSET $2`,
       [limit, offset]
     );
 
     return NextResponse.json(rows);
-  } catch (err: any) {
-    if (err.message === 'UNAUTHORIZED' || err.message === 'FORBIDDEN') {
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    if (errorMessage === 'UNAUTHORIZED' || errorMessage === 'FORBIDDEN') {
       return new NextResponse('Forbidden', { status: 403 });
     }
     console.error('Error fetching audit logs', err);

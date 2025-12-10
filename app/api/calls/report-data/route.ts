@@ -1,14 +1,10 @@
 // app/api/calls/report-data/route.ts
 // Phase 2: Uses canonical counting logic for aggregate stats
 import { NextRequest, NextResponse } from 'next/server';
-import { Pool } from 'pg';
+import { pool } from '@/lib/db';
 import { countCallsForParish } from '@/lib/calls/countCalls';
 
 export const runtime = 'nodejs';
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
 
 // Helper: parse "0:08:22" / "08:22" / "300" → seconds
 function parseDurationToSeconds(input: string | null | undefined): number | null {

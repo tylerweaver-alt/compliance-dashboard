@@ -1,13 +1,8 @@
 // app/api/response-zones/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { Pool } from 'pg';
+import { pool } from '@/lib/db';
 
 export const runtime = 'nodejs';
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-});
 
 // Next.js 14+ requires params to be awaited
 type RouteContext = { params: Promise<{ id: string }> };

@@ -28,48 +28,8 @@ export type ActionType =
   | 'ACTIVATE_POST'                  // Activate a dormant post
   | 'DEACTIVATE_POST';               // Deactivate a post
 
-async function initTables() {
-  await query(`
-    CREATE TABLE IF NOT EXISTS policy_rules (
-      id SERIAL PRIMARY KEY,
-      region_id VARCHAR(50) NOT NULL,
-      name VARCHAR(255) NOT NULL,
-      description TEXT,
-      priority INTEGER DEFAULT 100,
-      is_active BOOLEAN DEFAULT true,
-      is_auto_execute BOOLEAN DEFAULT false,
-      created_at TIMESTAMP DEFAULT NOW(),
-      updated_at TIMESTAMP DEFAULT NOW()
-    )
-  `);
-
-  await query(`
-    CREATE TABLE IF NOT EXISTS policy_rule_conditions (
-      id SERIAL PRIMARY KEY,
-      rule_id INTEGER REFERENCES policy_rules(id) ON DELETE CASCADE,
-      condition_type VARCHAR(50) NOT NULL,
-      target_parish VARCHAR(100),
-      target_post_id INTEGER,
-      operator VARCHAR(10) NOT NULL,
-      value VARCHAR(100) NOT NULL,
-      logic_operator VARCHAR(10) DEFAULT 'AND'
-    )
-  `);
-
-  await query(`
-    CREATE TABLE IF NOT EXISTS policy_rule_actions (
-      id SERIAL PRIMARY KEY,
-      rule_id INTEGER REFERENCES policy_rules(id) ON DELETE CASCADE,
-      action_type VARCHAR(50) NOT NULL,
-      target_level INTEGER,
-      target_post_id INTEGER,
-      from_parish VARCHAR(100),
-      to_parish VARCHAR(100),
-      message TEXT,
-      execution_order INTEGER DEFAULT 1
-    )
-  `);
-}
+// NOTE: Table creation moved to db/migrations/20251210_coverage_tables.sql (H5 fix)
+// Tables: policy_rules, policy_rule_conditions, policy_rule_actions
 
 // GET /api/policy-rules?region_id=CENLA
 export async function GET(req: NextRequest) {
@@ -81,8 +41,6 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    await initTables();
-
     const rulesResult = await query(`
       SELECT pr.id, pr.region_id, pr.name, pr.description, pr.priority, 
              pr.is_active, pr.is_auto_execute,
@@ -143,8 +101,6 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    await initTables();
-
     // Insert the rule
     const ruleResult = await query(`
       INSERT INTO policy_rules (region_id, name, description, priority, is_auto_execute)
