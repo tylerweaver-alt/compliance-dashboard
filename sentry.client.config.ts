@@ -1,16 +1,24 @@
 // sentry.client.config.ts
-// Client-side Sentry init for Next.js (no Replay for now)
-
 import * as Sentry from "@sentry/nextjs";
 
 Sentry.init({
-  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN || process.env.SENTRY_DSN,
+  dsn: process.env.SENTRY_DSN || "",
 
-  // Adjust this for prod vs dev as you like
-  tracesSampleRate: process.env.NODE_ENV === "production" ? 0.2 : 1.0,
+  // Only enable Sentry when DSN is configured
+  enabled: !!process.env.SENTRY_DSN,
 
-  // Only log debug info locally
-  debug: process.env.NODE_ENV === "development",
+  // Client-side performance tracing
+  tracesSampleRate: 0.1,
 
-.
+  // DO NOT configure Replay here to avoid multiple instances.
+  // If you want Replay, put replayIntegration() in ONE place only
+  // (recommended: instrumentation-client.ts) and keep it out of here.
+
+  sendDefaultPii: false,
+
+  environment:
+    process.env.SENTRY_ENVIRONMENT ||
+    process.env.VERCEL_ENV ||
+    process.env.NODE_ENV ||
+    "development",
 });
