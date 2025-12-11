@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import ParishSettingsManager from '../components/ParishSettingsManager';
 import AdminSettingsModal from '../components/AdminSettingsModal';
 import AcadianIntelligenceButton from '../components/AcadianIntelligenceButton';
-import DevLogsPanel from '../components/DevLogsPanel';
 import {
   loadDateRange,
   saveDateRange,
@@ -659,7 +658,6 @@ function Dashboard({ user, onLogout }) {
   const [showParishSettings, setShowParishSettings] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showAdminSettings, setShowAdminSettings] = useState(false);
-  const [showDevLogs, setShowDevLogs] = useState(false);
 
   // Check if current user has admin privileges
   const isAdmin = user?.is_admin === true || (user?.role && ADMIN_ROLES.includes(user.role));
@@ -668,12 +666,6 @@ function Dashboard({ user, onLogout }) {
   // Check if user is a SuperAdmin (can access /sysadmin) - now uses DB column
   const isSuperAdmin = user?.is_superadmin === true;
 
-  // Check if Dev Logs feature is enabled and user has access
-  const DEV_LOGS_ROLES = ['admin', 'superadmin', 'dev', 'Admin', 'SuperAdmin', 'Dev'];
-  const canAccessDevLogs =
-    process.env.NEXT_PUBLIC_SHOW_DEV_LOGS === 'true' &&
-    user?.role &&
-    DEV_LOGS_ROLES.includes(user.role);
 
   // =========================================================================
   // REGION DATA FROM DATABASE
@@ -1132,25 +1124,7 @@ function Dashboard({ user, onLogout }) {
                     Heatmap Settings
                   </button>
                 )}
-                {canAccessDevLogs && (
-                  <button
-                    onClick={() => {
-                      setShowDevLogs(true);
-                      setUserMenuOpen(false);
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-                      />
-                    </svg>
-                    Dev Logs
-                  </button>
-                )}
+                
                 <hr className="my-1 border-slate-200" />
                 <button
                   onClick={() => {
@@ -1768,17 +1742,7 @@ function Dashboard({ user, onLogout }) {
         onRefreshDashboard={handleRefreshDashboard}
       />
 
-      {/* Dev Logs Panel */}
-      {canAccessDevLogs && (
-        <DevLogsPanel
-          isOpen={showDevLogs}
-          onClose={() => setShowDevLogs(false)}
-          regionId={selectedRegion?.id}
-          startDate={startDate}
-          endDate={endDate}
-          dateSource={dateSource}
-        />
-      )}
+      
 
       {/* Live Clock - Bottom Right Corner */}
       <div className="fixed bottom-4 right-4 text-sm text-slate-400 bg-white/80 backdrop-blur-sm px-3 py-1.5 rounded-lg shadow-sm border border-slate-200">
