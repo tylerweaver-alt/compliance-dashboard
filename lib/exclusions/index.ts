@@ -116,15 +116,16 @@ export async function recordManualExclusion(
     // 3. Insert into audit_logs
     await client.query(
       `INSERT INTO audit_logs (
-        action, target_type, target_id, summary, metadata, actor_email
-      ) VALUES ($1, $2, $3, $4, $5, $6)`,
+        actor_user_id, actor_email, action, target_type, target_id, summary, metadata
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
       [
+        userId,
+        userEmail,
         'MANUAL_EXCLUSION',
         'call',
         callId.toString(),
         `Manually excluded call`,
         JSON.stringify({ reason }),
-        userEmail,
       ]
     );
 
@@ -199,17 +200,19 @@ export async function revertManualExclusion(
     );
 
     // 4. Insert into audit_logs
+    // Note: We don't have userId here, so we'll use NULL for actor_user_id
     await client.query(
       `INSERT INTO audit_logs (
-        action, target_type, target_id, summary, metadata, actor_email
-      ) VALUES ($1, $2, $3, $4, $5, $6)`,
+        actor_user_id, actor_email, action, target_type, target_id, summary, metadata
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
       [
+        null, // We don't have userId in this function signature
+        userEmail,
         'REVERT_MANUAL_EXCLUSION',
         'call',
         callId.toString(),
         `Reverted manual exclusion`,
         JSON.stringify({ revertReason }),
-        userEmail,
       ]
     );
 
