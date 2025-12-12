@@ -2,31 +2,23 @@
 import * as Sentry from "@sentry/nextjs";
 
 Sentry.init({
-  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+  dsn: process.env.SENTRY_DSN || "",
 
-  // PII: you can switch this to false later if IT wants no default PII
-  sendDefaultPii: true,
+  // Only enable Sentry when DSN is configured
+  enabled: !!process.env.SENTRY_DSN,
 
-  // Integrations: Performance (Tracing) + Session Replay
-  integrations: [
-    Sentry.browserTracingIntegration(),
-    Sentry.replayIntegration(),
-  ],
+  // Client-side performance tracing
+  tracesSampleRate: 0.1,
 
-  // Tracing
-  tracesSampleRate: 1.0, // 100% in dev; lower this (e.g. 0.1) in prod
+  // DO NOT configure Replay here to avoid multiple instances.
+  // If you want Replay, put replayIntegration() in ONE place only
+  // (recommended: instrumentation-client.ts) and keep it out of here.
 
-  // Where to propagate tracing headers
-  tracePropagationTargets: [
-    "localhost",
-    // TODO: replace with your real API / domain later
-    /^https:\/\/yourserver\.io\/api/,
-  ],
+  sendDefaultPii: false,
 
-  // Session Replay
-  replaysSessionSampleRate: 0.1, // 10% of all sessions
-  replaysOnErrorSampleRate: 1.0, // 100% when there was an error
-
-  // Send console logs to Sentry
-  enableLogs: true,
+  environment:
+    process.env.SENTRY_ENVIRONMENT ||
+    process.env.VERCEL_ENV ||
+    process.env.NODE_ENV ||
+    "development",
 });

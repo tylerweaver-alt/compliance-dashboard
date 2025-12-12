@@ -3,9 +3,34 @@
  * Handles Google auth, Neon user lookup, audit events, and guarded dev bypass.
  */
 
-import NextAuth, { NextAuthOptions, User } from 'next-auth';
+import NextAuth, { NextAuthOptions } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 import { Pool } from 'pg';
+import 'next-auth';
+
+// ============================================================================
+// MODULE AUGMENTATION (adds our custom fields to User & Session)
+// ============================================================================
+
+declare module 'next-auth' {
+  interface User {
+    name?: string | null;
+    email?: string | null;
+    image?: string | null;
+
+    role?: string;
+    allowed_regions?: string[];
+    has_all_regions?: boolean;
+    is_admin?: boolean;
+    is_superadmin?: boolean;
+    is_internal?: boolean;
+    display_name?: string | null;
+  }
+
+  interface Session {
+    user: User;
+  }
+}
 
 // ============================================================================
 // DATABASE CONNECTION
@@ -28,6 +53,8 @@ interface DbUser {
   role: string;
   is_active: boolean;
   is_admin: boolean;
+  is_superadmin: boolean;
+  is_internal: boolean;
   allowed_regions: string[];
   has_all_regions: boolean;
 }
@@ -37,7 +64,8 @@ async function getUserFromDb(email: string): Promise<DbUser | null> {
     const client = await pool.connect();
     try {
       const result = await client.query<DbUser>(
-        `SELECT id, email, full_name, display_name, role, is_active, is_admin, allowed_regions, has_all_regions
+        `SELECT id, email, full_name, display_name, role, is_active,
+                is_admin, is_superadmin, is_internal, allowed_regions, has_all_regions
          FROM users
          WHERE LOWER(email) = LOWER($1)
          LIMIT 1`,
@@ -55,11 +83,6 @@ async function getUserFromDb(email: string): Promise<DbUser | null> {
 
 // ============================================================================
 // DEV-ONLY FAILSAFE
-// Only active when BOTH:
-//   1. NODE_ENV === 'development'
-//   2. LOCAL_DEV_BYPASS === '1'
-// This should never be enabled in staging/production. A runtime assertion below
-// will throw if the flag is present in non-local environments.
 // ============================================================================
 
 const DEV_BYPASS_EMAIL = 'tyler.weaver@acadian.com';
@@ -75,7 +98,12 @@ function assertSafeDevBypass() {
   if (nodeEnv && nodeEnv !== 'development') {
     throw new Error('LOCAL_DEV_BYPASS=1 is not allowed when NODE_ENV is not development');
   }
-  if (vercelEnv && vercelEnv !== 'development' && vercelEnv !== 'dev' && vercelEnv !== 'local') {
+  if (
+    vercelEnv &&
+    vercelEnv !== 'development' &&
+    vercelEnv !== 'dev' &&
+    vercelEnv !== 'local'
+  ) {
     throw new Error(`LOCAL_DEV_BYPASS=1 is not allowed when VERCEL_ENV=${vercelEnv}`);
   }
 }
@@ -95,6 +123,8 @@ function getDevBypassUser(): DbUser {
     role: 'admin',
     is_active: true,
     is_admin: true,
+    is_superadmin: true,
+    is_internal: true,
     allowed_regions: [],
     has_all_regions: true,
   };
@@ -117,7 +147,7 @@ export const authOptions: NextAuthOptions = {
      * signIn callback - runs when user attempts to sign in
      * Return true to allow, false to deny, or a URL to redirect
      */
-    async signIn({ user, account, profile }) {
+    async signIn({ user }) {
       const email = user.email?.toLowerCase();
 
       // 1. Must have an email
@@ -160,40 +190,55 @@ export const authOptions: NextAuthOptions = {
      * session callback - runs whenever session is checked
      * Attach user role/region data from database to the session
      */
-    async session({ session, token }) {
+    async session({ session }) {
       if (session.user?.email) {
         const email = session.user.email.toLowerCase();
+
+        // 1) Pull from DB
         let dbUser = await getUserFromDb(email);
 
-        // DEV FAILSAFE: Use bypass user if DB lookup fails
+        // 2) Dev bypass fallback if DB fails
         if (!dbUser && isDevBypassEnabled() && email === DEV_BYPASS_EMAIL) {
           console.warn('[NextAuth] DEV BYPASS: Using fallback user for session');
           dbUser = getDevBypassUser();
         }
 
+        // 3) Map DB → session.user if we have a user
         if (dbUser) {
-          // Attach custom fields to session.user
           session.user.role = dbUser.role;
           session.user.allowed_regions = dbUser.allowed_regions;
           session.user.has_all_regions = dbUser.has_all_regions;
           session.user.is_admin = dbUser.is_admin;
-          session.user.display_name = dbUser.display_name || dbUser.full_name || session.user.name;
+          session.user.is_superadmin = dbUser.is_superadmin;
+          session.user.is_internal = dbUser.is_internal;
+          session.user.display_name =
+            dbUser.display_name || dbUser.full_name || session.user.name;
+        }
+
+        // 4) Hard-owner override
+        const OWNER_EMAILS = ['tyler.weaver@acadian.com', 'jrc7192@gmail.com'];
+        if (OWNER_EMAILS.includes(email)) {
+          session.user.is_superadmin = true;
+          session.user.is_internal = true;
+          session.user.is_admin = true;
+          session.user.has_all_regions = true;
         }
       }
+
       return session;
     },
   },
 
   pages: {
-    signIn: '/AcadianDashboard',  // Redirect to our custom login page
-    error: '/AcadianDashboard',   // Also redirect errors there
+    signIn: '/AcadianDashboard', // Redirect to our custom login page
+    error: '/AcadianDashboard',  // Also redirect errors there
   },
 
   events: {
     /**
      * signIn event - fires after successful sign-in
      */
-    async signIn({ user, account, profile, isNewUser }) {
+    async signIn({ user, account, isNewUser }) {
       try {
         const email = user.email?.toLowerCase();
         if (!email) return;
@@ -236,7 +281,7 @@ export const authOptions: NextAuthOptions = {
      */
     async signOut({ token }) {
       try {
-        const email = (token?.email as string)?.toLowerCase();
+        const email = (token?.email as string | undefined)?.toLowerCase();
         if (!email) return;
 
         // Get user ID from database for audit logging
