@@ -160,10 +160,25 @@ export async function GET(req: NextRequest) {
     });
   } catch (err: any) {
     console.error('Error fetching calls:', err);
+
+    // Check if the view doesn't exist
+    if (err.code === '42P01') {
+      console.error('calls_with_exclusions view does not exist. Please run scripts/fix-weather-view.js or create the database views.');
+      return NextResponse.json(
+        {
+          error: 'Database views not found',
+          details: 'The calls_with_exclusions view does not exist. Please contact administrator to run database migrations.',
+          hint: 'Run scripts/fix-weather-view.js to create required database views'
+        },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json(
       {
         error: 'Failed to fetch calls',
         details: err.message ?? String(err),
+        code: err.code
       },
       { status: 500 }
     );
