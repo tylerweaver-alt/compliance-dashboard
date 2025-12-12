@@ -2,7 +2,7 @@
 import * as Sentry from "@sentry/nextjs";
 
 Sentry.init({
-  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN || "https://7179718dda7eb08c628607040a1e523f@o4510485628715008.ingest.us.sentry.io/4510485726560256",
 
   // PII: you can switch this to false later if IT wants no default PII
   sendDefaultPii: true,
@@ -19,8 +19,7 @@ Sentry.init({
   // Where to propagate tracing headers
   tracePropagationTargets: [
     "localhost",
-    // TODO: replace with your real API / domain later
-    /^https:\/\/yourserver\.io\/api/,
+    /^https:\/\/acadian\.cadalytix\.com/,
   ],
 
   // Session Replay
