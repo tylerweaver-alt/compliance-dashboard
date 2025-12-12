@@ -343,6 +343,190 @@ const ALL_COLUMNS = {
 // Default columns: Date, Call#, Unit, Address, Received, Dispatched, Enroute, Staged, On Scene, Depart, Arrived, Available, Response, Status, Exclusion
 const DEFAULT_COLUMNS = ['date', 'call_number', 'unit', 'address', 'received', 'dispatched', 'enroute', 'staged', 'on_scene', 'depart', 'arrived', 'available', 'response', 'status', 'exclusion_status'];
 
+// Audit Log Panel Component - Shows time edits and exclusions (manual + auto)
+function AuditLogPanel({ callEdits, autoExclusions, isOpen }) {
+  // Merge time edits and exclusions into a single list
+  const allEntries = [];
+
+  // Add time edit entries (type: 'time_edit')
+  if (callEdits && callEdits.length > 0) {
+    callEdits.forEach((item) => {
+      allEntries.push({ ...item, entryType: 'time_edit' });
+    });
+  }
+
+  // Add exclusion entries (both manual and auto - from unified endpoint)
+  if (autoExclusions && autoExclusions.length > 0) {
+    autoExclusions.forEach((item) => {
+      // Determine entry type based on exclusion.type
+      const exclusionType =
+        item.exclusion?.type === 'MANUAL' ? 'manual_exclusion' : 'auto_exclusion';
+      allEntries.push({ ...item, entryType: exclusionType });
+    });
+  }
+
+  if (!isOpen || allEntries.length === 0) return null;
+
+  const formatDateTime = (isoString) => {
+    if (!isoString) return '—';
+    const d = new Date(isoString);
+    return d.toLocaleString('en-US', {
+      month: '2-digit',
+      day: '2-digit',
+      year: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+  };
+
+  const extractTime = (dateTimeStr) => {
+    if (!dateTimeStr) return '—';
+    const parts = dateTimeStr.split(' ');
+    return parts.length > 1 ? parts[1] : dateTimeStr;
+  };
+
+  // Count by type for header
+  const timeEditCount = callEdits?.length || 0;
+  const autoExclusionCount = allEntries.filter((e) => e.entryType === 'auto_exclusion').length;
+  const manualExclusionCount = allEntries.filter((e) => e.entryType === 'manual_exclusion').length;
+
+  return (
+    <div className="print:break-before-page audit-log-print">
+      {/* Header */}
+      <div className="audit-log-header px-4 py-2 border-b border-slate-300 bg-slate-100">
+        <h2 className="text-sm font-semibold text-slate-700 text-center underline decoration-1 decoration-slate-400 underline-offset-2">
+          Audit Log — {allEntries.length} item(s)
+          <span className="text-slate-500 font-normal ml-2">
+            (
+            {timeEditCount > 0 ? `${timeEditCount} time edit${timeEditCount !== 1 ? 's' : ''}` : ''}
+            {timeEditCount > 0 && (manualExclusionCount > 0 || autoExclusionCount > 0) ? ', ' : ''}
+            {manualExclusionCount > 0
+              ? `${manualExclusionCount} manual exclusion${manualExclusionCount !== 1 ? 's' : ''}`
+              : ''}
+            {manualExclusionCount > 0 && autoExclusionCount > 0 ? ', ' : ''}
+            {autoExclusionCount > 0
+              ? `${autoExclusionCount} auto-exclusion${autoExclusionCount !== 1 ? 's' : ''}`
+              : ''}
+            )
+          </span>
+        </h2>
+      </div>
+
+      {/* Merged Call List */}
+      <div className="divide-y divide-slate-200">
+        {allEntries.map((callData) => {
+          const isManualExclusion = callData.entryType === 'manual_exclusion';
+          const isAutoExclusion = callData.entryType === 'auto_exclusion';
+          const isExclusion = isManualExclusion || isAutoExclusion;
+
+          return (
+            <div key={`${callData.entryType}-${callData.callId}`} className="bg-white">
+              {/* Call Header - different styling for auto vs others */}
+              <div
+                className={`audit-log-call-header text-slate-900 px-3 py-1.5 flex items-center justify-between text-xs border-b border-slate-400 ${
+                  isAutoExclusion ? 'bg-red-200' : 'bg-slate-300'
+                }`}
+              >
+                <div className="flex items-center gap-4">
+                  {/* Gear icon for auto-exclusions */}
+                  {isAutoExclusion && (
+                    <svg className="w-5 h-5 text-slate-700" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 15.5A3.5 3.5 0 0 1 8.5 12 3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.53c.04-.32.07-.64.07-.97 0-.33-.03-.66-.07-1l2.11-1.63c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.31-.61-.22l-2.49 1c-.52-.39-1.06-.73-1.69-.98l-.37-2.65A.506.506 0 0 0 14 2h-4c-.25 0-.46.18-.5.42l-.37 2.65c-.63.25-1.17.59-1.69.98l-2.49-1c-.22-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64L4.57 11c-.04.34-.07.67-.07 1 0 .33.03.65.07.97l-2.11 1.66c-.19.15-.25.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1.01c.52.4 1.06.74 1.69.99l.37 2.65c.04.24.25.42.5.42h4c.25 0 .46-.18.5-.42l.37-2.65c.63-.26 1.17-.59 1.69-.99l2.49 1.01c.22.08.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.66z" />
+                    </svg>
+                  )}
+                  <span className="font-bold">
+                    {isManualExclusion
+                      ? 'MANUAL EXCLUSION | '
+                      : isAutoExclusion
+                        ? 'AUTO-EXCLUDED | '
+                        : ''}
+                    Call #
+                    {callData.callInfo.responseNumber?.split('-')[1] ||
+                      callData.callInfo.responseNumber ||
+                      callData.callId}
+                  </span>
+                  <span className="text-slate-600">{callData.callInfo.responseDate}</span>
+                  <span className="text-slate-600">Unit: {callData.callInfo.unit || '—'}</span>
+                  <span className="text-slate-600">Zone: {callData.callInfo.zone || '—'}</span>
+                </div>
+                <span
+                  className={`audit-log-badge text-white px-2 py-0.5 rounded text-[10px] font-medium ${
+                    isAutoExclusion ? 'bg-red-600' : 'bg-slate-600'
+                  }`}
+                >
+                  {isAutoExclusion
+                    ? `#${callData.windowContext?.callPosition || '?'} of ${callData.windowContext?.callsInWindow || '?'} calls`
+                    : isManualExclusion
+                      ? 'User Excluded'
+                      : `Total Edits: ${callData.edits?.length || 0}`}
+                </span>
+              </div>
+
+              {/* Content differs based on entry type */}
+              {callData.entryType === 'time_edit' ? (
+                /* Time Edit Details */
+                <div className="text-xs">
+                  {callData.edits.map((edit, idx) => (
+                    <div
+                      key={edit.id || idx}
+                      className={`px-3 py-1.5 flex items-start gap-3 ${idx % 2 === 0 ? 'audit-log-row-even bg-slate-50' : 'audit-log-row-odd bg-white'} ${idx < callData.edits.length - 1 ? 'border-b border-slate-100' : ''}`}
+                    >
+                      {/* Field + Time Change */}
+                      <div className="flex items-center gap-2 min-w-[200px]">
+                        <span className="font-semibold text-slate-700 w-16">
+                          {edit.fieldLabel}:
+                        </span>
+                        <span className="font-mono text-red-600">{extractTime(edit.oldValue)}</span>
+                        <span className="text-slate-400">→</span>
+                        <span className="font-mono text-green-600">
+                          {extractTime(edit.newValue)}
+                        </span>
+                      </div>
+                      {/* Reason */}
+                      <div className="flex-1 text-slate-600 truncate" title={edit.reason}>
+                        {edit.reason}
+                      </div>
+                      {/* Who/When */}
+                      <div className="text-slate-400 text-right whitespace-nowrap">
+                        {edit.editedByName || edit.editedBy?.split('@')[0]} ·{' '}
+                        {formatDateTime(edit.editedAt)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : isManualExclusion ? (
+                /* Manual Exclusion Details - compact single line */
+                <div className="text-xs px-3 py-1.5 bg-slate-50 flex items-center justify-between">
+                  <div>
+                    <span className="font-semibold text-slate-700">Reason:</span>
+                    <span className="text-slate-600 ml-1">{callData.exclusion?.reason || '—'}</span>
+                  </div>
+                  <div className="text-slate-400">
+                    Excluded by: {callData.exclusion?.excludedBy || 'Unknown'} ·{' '}
+                    {formatDateTime(callData.exclusion?.excludedAt)}
+                  </div>
+                </div>
+              ) : (
+                /* Auto-Exclusion Details - compact format */
+                <div className="text-xs px-3 py-1.5 bg-red-50 flex items-center justify-between">
+                  <div>
+                    <span className="font-semibold text-slate-700">Reason:</span>
+                    <span className="text-slate-600 ml-1">{callData.exclusion?.reason || 'Auto-excluded by system'}</span>
+                  </div>
+                  <div className="text-slate-400">
+                    {formatDateTime(callData.exclusion?.excludedAt)}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function CallsPageContent() {
   const searchParams = useSearchParams();
   const parishId = searchParams.get('parish_id');
@@ -361,6 +545,15 @@ function CallsPageContent() {
   // Editable response time state
   const [editingResponseTime, setEditingResponseTime] = useState(null); // { callId, minutes }
   const [responseTimeOverrides, setResponseTimeOverrides] = useState({}); // { callId: minutes }
+
+  // Audit log state
+  const [auditLogData, setAuditLogData] = useState([]);
+  const [auditLogLoading, setAuditLogLoading] = useState(false);
+  const [autoExclusionAuditData, setAutoExclusionAuditData] = useState([]);
+  const [autoExclusionAuditLoading, setAutoExclusionAuditLoading] = useState(false);
+
+  // Active tab state: 'calls' or 'audit'
+  const [activeTab, setActiveTab] = useState('calls');
 
   // Parish settings
   const [parishSettings, setParishSettings] = useState(null);
@@ -482,6 +675,13 @@ function CallsPageContent() {
     if (isFirstFetch) setIsFirstFetch(false);
   }, [parishId, startDate, endDate, datesInitialized]);
 
+  // Fetch audit log when dates change (needed for printing even if panel is hidden)
+  useEffect(() => {
+    if (parishId && startDate && endDate && datesInitialized) {
+      fetchAuditLog();
+    }
+  }, [parishId, startDate, endDate, datesInitialized]);
+
   async function fetchCalls(isInitial = false) {
     if (isInitial) {
       setInitialLoading(true);
@@ -531,6 +731,43 @@ function CallsPageContent() {
     } finally {
       setInitialLoading(false);
       setRefetching(false);
+    }
+  }
+
+  // Fetch audit log data for the current date range (time edits + all exclusions)
+  async function fetchAuditLog() {
+    if (!parishId || !startDate || !endDate) return;
+
+    setAuditLogLoading(true);
+    setAutoExclusionAuditLoading(true);
+
+    try {
+      const params = new URLSearchParams();
+      params.set('parish_id', parishId);
+      if (startDate) params.set('start', startDate);
+      if (endDate) params.set('end', endDate);
+
+      // Fetch both time edits and all exclusions (manual + auto) in parallel
+      const [timeEditsRes, exclusionsRes] = await Promise.all([
+        fetch(`/api/calls/time-edits?${params.toString()}`),
+        fetch(`/api/calls/exclusion-audit?${params.toString()}`),
+      ]);
+
+      if (timeEditsRes.ok) {
+        const data = await timeEditsRes.json();
+        setAuditLogData(data.callEdits || []);
+      }
+
+      if (exclusionsRes.ok) {
+        const data = await exclusionsRes.json();
+        // The new endpoint returns all exclusions (manual + auto)
+        setAutoExclusionAuditData(data.exclusions || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch audit log:', err);
+    } finally {
+      setAuditLogLoading(false);
+      setAutoExclusionAuditLoading(false);
     }
   }
 
@@ -1175,10 +1412,61 @@ function CallsPageContent() {
           </div>
         </div>
 
-        {/* Calls Table - Priority 1-3 calls that arrived at scene */}
-        {/* When "All Zones" selected, sort by zone then date; otherwise use normal order */}
-        <div className="bg-white rounded-xl overflow-hidden shadow-sm border border-slate-200 print:shadow-none print:border-0">
-          <div className="px-6 py-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 print:py-2">
+        {/* Calls Table / Audit Log - Folder Tab Navigation */}
+        <div className="print:shadow-none print:border-0">
+          {/* Folder Tabs */}
+          <div className="flex items-end print:hidden">
+            {/* Call Details Tab */}
+            <button
+              onClick={() => setActiveTab('calls')}
+              className={`relative px-6 py-3 font-semibold text-sm rounded-t-lg transition-all border-t-2 border-l border-r ${
+                activeTab === 'calls'
+                  ? 'bg-slate-50 text-slate-800 border-t-[#004437] border-l-slate-300 border-r-slate-300 z-10 -mb-px shadow-md'
+                  : 'bg-slate-300 text-slate-600 hover:bg-slate-200 hover:text-slate-700 border-t-slate-400 border-l-slate-400 border-r-slate-400 -mb-px mr-[-1px]'
+              }`}
+              style={activeTab === 'calls' ? {} : { transform: 'translateY(3px)' }}
+            >
+              Call Details (Priority 1-3)
+              {selectedZone === 'all' && zones.length > 0 ? ' - All Zones' : ''}
+              <span
+                className={`ml-2 text-xs font-normal ${activeTab === 'calls' ? 'text-slate-500' : 'text-slate-500'}`}
+              >
+                {complianceCalls.length}
+              </span>
+            </button>
+
+            {/* Audit Log Tab */}
+            <button
+              onClick={() => setActiveTab('audit')}
+              className={`relative px-6 py-3 font-semibold text-sm rounded-t-lg transition-all border-t-2 border-l border-r ${
+                activeTab === 'audit'
+                  ? 'bg-slate-50 text-slate-800 border-t-[#004437] border-l-slate-300 border-r-slate-300 z-10 -mb-px shadow-md'
+                  : 'bg-slate-300 text-slate-600 hover:bg-slate-200 hover:text-slate-700 border-t-slate-400 border-l-slate-400 border-r-slate-400 -mb-px mr-[-1px]'
+              }`}
+              style={activeTab === 'audit' ? {} : { transform: 'translateY(3px)' }}
+            >
+              Audit Log
+              {(auditLogData.length > 0 || autoExclusionAuditData.length > 0) && (
+                <span className="ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-600 text-white">
+                  {auditLogData.length + autoExclusionAuditData.length}
+                </span>
+              )}
+            </button>
+
+            {/* Spacer to fill rest of tab bar */}
+            <div className="flex-1 border-b border-slate-300 -mb-px"></div>
+          </div>
+
+          {/* Print-only header */}
+          <div className="hidden print:block px-6 py-2 border-b border-slate-200 bg-white">
+            <h2 className="text-base font-semibold text-slate-800">
+              Call Details (Priority 1-3){selectedZone === 'all' && zones.length > 0 ? ' - All Response Zones' : ''}
+            </h2>
+          </div>
+
+          {/* Call Details Tab Content */}
+          <div className={`${activeTab === 'calls' ? '' : 'hidden'} print:block bg-white rounded-xl overflow-hidden shadow-sm border border-slate-200 print:shadow-none print:border-0`}>
+          <div className="px-6 py-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 print:py-2 print:hidden">
             <h2 className="text-lg font-semibold text-slate-700 print:text-base">
               Call Details (Priority 1-3){selectedZone === 'all' && zones.length > 0 ? ' - All Response Zones' : ''}
             </h2>
@@ -1395,6 +1683,38 @@ function CallsPageContent() {
             </table>
           </div>
         </div>
+        </div> {/* End Call Details Tab Content */}
+
+        {/* Audit Log Tab Content */}
+        <div className={`${activeTab === 'audit' ? '' : 'hidden'} print:block`}>
+          {auditLogLoading || autoExclusionAuditLoading ? (
+            <div className="p-8 text-center text-slate-500">Loading audit log...</div>
+          ) : auditLogData.length > 0 || autoExclusionAuditData.length > 0 ? (
+            <AuditLogPanel
+              callEdits={auditLogData}
+              autoExclusions={autoExclusionAuditData}
+              isOpen={true}
+            />
+          ) : (
+            <div className="p-8 text-center text-slate-500">
+              <svg
+                className="w-12 h-12 mx-auto mb-3 text-slate-300"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                />
+              </svg>
+              <p className="text-sm">No audit log entries for this date range</p>
+            </div>
+          )}
+        </div>
+        </div> {/* End tab container */}
       </div>
       </div> {/* End scrollable content area */}
 
