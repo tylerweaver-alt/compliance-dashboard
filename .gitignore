@@ -48,3 +48,12 @@ next-env.d.ts
 
 # Sentry Config File
 .env.sentry-build-plugin
+
+# Python virtualenv
+.venv/
+**/.venv/
+
+# Python bytecode
+__pycache__/
+*.pyc
+
