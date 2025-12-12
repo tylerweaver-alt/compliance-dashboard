@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { recordManualExclusion, revertManualExclusion } from '@/lib/exclusions';
+import { pool } from '@/lib/db';
 
 export const runtime = 'nodejs';
 
@@ -50,10 +51,25 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    // Get user ID from database
+    let userId: string | null = null;
+    const client = await pool.connect();
+    try {
+      const userResult = await client.query(
+        `SELECT id FROM users WHERE LOWER(email) = LOWER($1)`,
+        [session.user.email]
+      );
+      if (userResult.rows.length > 0) {
+        userId = userResult.rows[0].id;
+      }
+    } finally {
+      client.release();
+    }
+
     if (action === 'exclude') {
       await recordManualExclusion(
         callId,
-        session.user.id ?? null,
+        userId,
         session.user.email,
         reason
       );
