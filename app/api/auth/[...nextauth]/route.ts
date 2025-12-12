@@ -126,28 +126,39 @@ export const authOptions: NextAuthOptions = {
         return false;
       }
 
-      // 2. Must be @acadian.com domain
+      // 2. Allow specific external emails from env var
+      const allowedExternal = (process.env.ALLOWED_EXTERNAL_EMAILS ?? '')
+        .split(',')
+        .map((e) => e.trim().toLowerCase())
+        .filter(Boolean);
+
+      if (allowedExternal.includes(email)) {
+        console.log(`[NextAuth] Sign-in ALLOWED (external override): ${email}`);
+        return true;
+      }
+
+      // 3. Allow @acadian.com domain (normal internal users)
       if (!email.endsWith('@acadian.com')) {
-        console.warn(`[NextAuth] Sign-in denied: Non-Acadian email (${email})`);
+        console.warn(`[NextAuth] Sign-in denied: Non-Acadian, not in external allowlist (${email})`);
         return false;
       }
 
-      // 3. Look up user in database
+      // 4. Look up user in database
       const dbUser = await getUserFromDb(email);
 
-      // 4. If user found and active, allow
+      // 5. If user found and active, allow
       if (dbUser && dbUser.is_active) {
         console.log(`[NextAuth] Sign-in allowed: ${email} (role: ${dbUser.role})`);
         return true;
       }
 
-      // 5. DEV FAILSAFE: Allow tyler.weaver@acadian.com even if DB lookup fails
+      // 6. DEV FAILSAFE: Allow tyler.weaver@acadian.com even if DB lookup fails
       if (isDevBypassEnabled() && email === DEV_BYPASS_EMAIL) {
         console.warn(`[NextAuth] DEV BYPASS: Allowing ${email} despite DB issues`);
         return true;
       }
 
-      // 6. Otherwise deny
+      // 7. Otherwise deny
       if (!dbUser) {
         console.warn(`[NextAuth] Sign-in denied: User not found in database (${email})`);
       } else if (!dbUser.is_active) {
