@@ -8,7 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { recordManualExclusion } from '@/lib/exclusions';
+import { recordManualExclusion, revertManualExclusion } from '@/lib/exclusions';
 
 export const runtime = 'nodejs';
 
@@ -65,11 +65,17 @@ export async function POST(req: NextRequest) {
       });
     } else {
       // Un-exclude logic (revert exclusion)
-      // TODO: Implement revert logic
+      await revertManualExclusion(
+        callId,
+        session.user.email,
+        reason
+      );
+
       return NextResponse.json({
-        ok: false,
-        error: 'Un-exclude not yet implemented',
-      }, { status: 501 });
+        ok: true,
+        message: 'Exclusion removed successfully',
+        callId,
+      });
     }
   } catch (error: any) {
     console.error('Error processing exclusion:', error);

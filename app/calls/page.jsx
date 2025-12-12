@@ -250,6 +250,36 @@ function ExclusionModal({ isOpen, onClose, onExclude, callId }) {
   );
 }
 
+// Remove Exclusion Confirmation Modal
+function RemoveExclusionModal({ isOpen, onClose, onConfirm, callId }) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+        <h2 className="text-lg font-bold mb-4 text-slate-800">Remove Exclusion</h2>
+        <p className="text-slate-600 mb-6">
+          Are you sure you want to remove this exclusion? The call will be included back in compliance calculations.
+        </p>
+        <div className="flex gap-3 justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-slate-200 text-slate-700 rounded hover:bg-slate-300 font-medium"
+          >
+            No
+          </button>
+          <button
+            onClick={() => onConfirm(callId)}
+            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-500 font-medium"
+          >
+            Yes, Remove Exclusion
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // All available columns with their definitions
 // Supports both legacy short names and new database column names
 const ALL_COLUMNS = {
@@ -542,6 +572,7 @@ function CallsPageContent() {
   const [zones, setZones] = useState([]);
   const [exclusionModal, setExclusionModal] = useState({ open: false, callId: null });
   const [weatherModal, setWeatherModal] = useState({ open: false, callId: null });
+  const [removeExclusionModal, setRemoveExclusionModal] = useState({ open: false, callId: null });
 
   // Editable response time state
   const [editingResponseTime, setEditingResponseTime] = useState(null); // { callId, minutes }
@@ -1162,18 +1193,38 @@ function CallsPageContent() {
   // Handle exclusion
   const handleExclude = async (callId, reason) => {
     try {
-      const res = await fetch('/api/calls/update-status', {
+      const res = await fetch('/api/calls/exclusion', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ callId, is_excluded: true, exclusion_reason: reason }),
+        body: JSON.stringify({ callId, reason, action: 'exclude' }),
       });
       if (res.ok) {
         setCalls(calls.map(c =>
-          c.id === callId ? { ...c, is_excluded: true, exclusion_reason: reason } : c
+          c.id === callId ? { ...c, is_excluded: true, exclusion_type: 'MANUAL', exclusion_reason: reason } : c
         ));
+        setExclusionModal({ open: false, callId: null });
       }
     } catch (err) {
       console.error('Failed to exclude call:', err);
+    }
+  };
+
+  // Handle removing exclusion
+  const handleRemoveExclusion = async (callId) => {
+    try {
+      const res = await fetch('/api/calls/exclusion', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ callId, reason: 'User removed exclusion', action: 'unexclude' }),
+      });
+      if (res.ok) {
+        setCalls(calls.map(c =>
+          c.id === callId ? { ...c, is_excluded: false, exclusion_type: null, exclusion_reason: null } : c
+        ));
+        setRemoveExclusionModal({ open: false, callId: null });
+      }
+    } catch (err) {
+      console.error('Failed to remove exclusion:', err);
     }
   };
 
@@ -1557,14 +1608,25 @@ function CallsPageContent() {
 
                         // Special handling for status column
                         if (col.isStatus) {
+                          const isManualExclusion = call.exclusion_type === 'MANUAL';
                           return (
                             <td key={colId} className="px-1 py-0.5 whitespace-nowrap">
                               {isNonCompliant && (
                                 <>
                                   {isExcluded ? (
-                                    <span className="px-1 py-0.5 bg-slate-200 border border-slate-400 text-red-600 text-[9px] rounded font-medium">
-                                      Excl
-                                    </span>
+                                    isManualExclusion ? (
+                                      <button
+                                        onClick={() => setRemoveExclusionModal({ open: true, callId: call.id })}
+                                        className="px-1 py-0.5 bg-slate-200 border border-slate-400 text-red-600 text-[9px] rounded font-medium hover:bg-slate-300 cursor-pointer"
+                                        title="Click to remove exclusion"
+                                      >
+                                        Excl
+                                      </button>
+                                    ) : (
+                                      <span className="px-1 py-0.5 bg-slate-200 border border-slate-400 text-red-600 text-[9px] rounded font-medium">
+                                        Excl
+                                      </span>
+                                    )
                                   ) : isConfirmed ? (
                                     <span className="px-1 py-0.5 bg-yellow-100 border border-yellow-400 text-red-600 text-[9px] rounded font-medium">
                                       Conf
@@ -1688,6 +1750,14 @@ function CallsPageContent() {
         isOpen={weatherModal.open}
         callId={weatherModal.callId}
         onClose={() => setWeatherModal({ open: false, callId: null })}
+      />
+
+      {/* Remove Exclusion Confirmation Modal */}
+      <RemoveExclusionModal
+        isOpen={removeExclusionModal.open}
+        callId={removeExclusionModal.callId}
+        onClose={() => setRemoveExclusionModal({ open: false, callId: null })}
+        onConfirm={handleRemoveExclusion}
       />
     </div>
   );
