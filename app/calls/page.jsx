@@ -1200,7 +1200,13 @@ function CallsPageContent() {
       });
       if (res.ok) {
         setCalls(calls.map(c =>
-          c.id === callId ? { ...c, is_excluded: true, exclusion_type: 'MANUAL', exclusion_reason: reason } : c
+          c.id === callId ? {
+            ...c,
+            is_excluded: true,
+            exclusion_type: 'MANUAL',
+            exclusion_reason: reason,
+            excluded_at: new Date().toISOString()
+          } : c
         ));
         setExclusionModal({ open: false, callId: null });
         // Refresh audit log to show the new exclusion
@@ -1221,7 +1227,13 @@ function CallsPageContent() {
       });
       if (res.ok) {
         setCalls(calls.map(c =>
-          c.id === callId ? { ...c, is_excluded: false, exclusion_type: null, exclusion_reason: null } : c
+          c.id === callId ? {
+            ...c,
+            is_excluded: false,
+            exclusion_type: null,
+            exclusion_reason: null,
+            excluded_at: null
+          } : c
         ));
         setRemoveExclusionModal({ open: false, callId: null });
         // Refresh audit log to remove the exclusion from the list
@@ -1612,7 +1624,8 @@ function CallsPageContent() {
 
                         // Special handling for status column
                         if (col.isStatus) {
-                          const isManualExclusion = call.exclusion_type === 'MANUAL';
+                          // Treat NULL exclusion_type as MANUAL (legacy excluded calls before unified system)
+                          const isManualExclusion = call.exclusion_type === 'MANUAL' || (call.is_excluded && !call.exclusion_type);
                           return (
                             <td key={colId} className="px-1 py-0.5 whitespace-nowrap">
                               {isNonCompliant && (
