@@ -1203,6 +1203,8 @@ function CallsPageContent() {
           c.id === callId ? { ...c, is_excluded: true, exclusion_type: 'MANUAL', exclusion_reason: reason } : c
         ));
         setExclusionModal({ open: false, callId: null });
+        // Refresh audit log to show the new exclusion
+        fetchAuditLog();
       }
     } catch (err) {
       console.error('Failed to exclude call:', err);
@@ -1222,6 +1224,8 @@ function CallsPageContent() {
           c.id === callId ? { ...c, is_excluded: false, exclusion_type: null, exclusion_reason: null } : c
         ));
         setRemoveExclusionModal({ open: false, callId: null });
+        // Refresh audit log to remove the exclusion from the list
+        fetchAuditLog();
       }
     } catch (err) {
       console.error('Failed to remove exclusion:', err);
