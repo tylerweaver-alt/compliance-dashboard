@@ -83,10 +83,10 @@ class PeakCallLoadStrategy implements AutoExclusionStrategy {
 
       // Get parish name
       const parishResult = await client.query(
-        `SELECT parish_name FROM parishes WHERE id = $1`,
+        `SELECT name FROM parishes WHERE id = $1`,
         [context.parishId]
       );
-      const parishName = parishResult.rows[0]?.parish_name || `Parish ${context.parishId}`;
+      const parishName = parishResult.rows[0]?.name || `Parish ${context.parishId}`;
 
       const metadata: PeakCallLoadMetadata = {
         evaluatedAt: new Date().toISOString(),
