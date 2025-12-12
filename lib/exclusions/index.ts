@@ -68,14 +68,17 @@ export async function recordManualExclusion(
   userEmail: string | null,
   reason: string
 ): Promise<void> {
+  console.log(`[recordManualExclusion] Starting: callId=${callId}, userId=${userId}, userEmail=${userEmail}, reason=${reason}`);
+
   if (!reason || reason.trim() === '') {
     throw new Error('Reason is required for manual exclusions');
   }
 
   const client = await pool.connect();
-  
+
   try {
     await client.query('BEGIN');
+    console.log(`[recordManualExclusion] Transaction started`);
 
     const now = new Date();
 
@@ -114,18 +117,18 @@ export async function recordManualExclusion(
     );
 
     // 3. Insert into audit_logs
+    // Note: Using only columns that exist in current schema
     await client.query(
       `INSERT INTO audit_logs (
-        actor_user_id, actor_email, action, target_type, target_id, summary, metadata
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        action, target_type, target_id, summary, metadata, actor_email
+      ) VALUES ($1, $2, $3, $4, $5, $6)`,
       [
-        userId,
-        userEmail,
         'MANUAL_EXCLUSION',
         'call',
         callId.toString(),
         `Manually excluded call`,
-        JSON.stringify({ reason }),
+        JSON.stringify({ reason, userId }),
+        userEmail,
       ]
     );
 
@@ -200,19 +203,18 @@ export async function revertManualExclusion(
     );
 
     // 4. Insert into audit_logs
-    // Note: We don't have userId here, so we'll use NULL for actor_user_id
+    // Note: Using only columns that exist in current schema
     await client.query(
       `INSERT INTO audit_logs (
-        actor_user_id, actor_email, action, target_type, target_id, summary, metadata
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        action, target_type, target_id, summary, metadata, actor_email
+      ) VALUES ($1, $2, $3, $4, $5, $6)`,
       [
-        null, // We don't have userId in this function signature
-        userEmail,
         'REVERT_MANUAL_EXCLUSION',
         'call',
         callId.toString(),
         `Reverted manual exclusion`,
         JSON.stringify({ revertReason }),
+        userEmail,
       ]
     );
 

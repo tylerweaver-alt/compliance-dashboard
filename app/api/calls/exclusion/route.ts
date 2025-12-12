@@ -62,9 +62,15 @@ export async function POST(req: NextRequest) {
       if (userResult.rows.length > 0) {
         userId = userResult.rows[0].id;
       }
+      console.log(`[Exclusion API] User lookup: email=${session.user.email}, userId=${userId}`);
+    } catch (dbError: any) {
+      console.error('[Exclusion API] Failed to fetch user ID:', dbError);
+      throw new Error(`Failed to fetch user ID: ${dbError.message}`);
     } finally {
       client.release();
     }
+
+    console.log(`[Exclusion API] Processing ${action} for callId=${callId}, userId=${userId}, email=${session.user.email}`);
 
     if (action === 'exclude') {
       await recordManualExclusion(
@@ -74,6 +80,7 @@ export async function POST(req: NextRequest) {
         reason
       );
 
+      console.log(`[Exclusion API] Successfully excluded call ${callId}`);
       return NextResponse.json({
         ok: true,
         message: 'Call excluded successfully',
@@ -87,6 +94,7 @@ export async function POST(req: NextRequest) {
         reason
       );
 
+      console.log(`[Exclusion API] Successfully removed exclusion for call ${callId}`);
       return NextResponse.json({
         ok: true,
         message: 'Exclusion removed successfully',
@@ -94,9 +102,19 @@ export async function POST(req: NextRequest) {
       });
     }
   } catch (error: any) {
-    console.error('Error processing exclusion:', error);
+    console.error('[Exclusion API] Error processing exclusion:', {
+      error: error.message,
+      stack: error.stack,
+      callId,
+      action,
+      userEmail: session.user.email,
+    });
     return NextResponse.json(
-      { error: 'Failed to process exclusion', details: error.message },
+      {
+        error: 'Failed to process exclusion',
+        details: error.message,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+      },
       { status: 500 }
     );
   }
