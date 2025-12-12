@@ -20,6 +20,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parse as csvParse } from 'csv-parse';
 import { query } from '@/lib/db';
+import { triggerBatchAsyncEvaluation } from '@/lib/autoExclusions/async';
 
 // Promisify the async CSV parser for sync-like usage
 async function parseCSV(content: string, options?: { relax_column_count?: boolean }): Promise<any[]> {
@@ -255,14 +256,21 @@ export async function POST(req: NextRequest) {
     let batchPlaceholders: string[] = [];
     let batchProcessed = 0;
     let batchProcessedOther = 0;
+    const insertedCallIds: number[] = []; // Track inserted call IDs for auto-exclusion
 
     // Helper function to flush the current batch
     const flushBatch = async () => {
       if (batchPlaceholders.length === 0) return;
 
       try {
-        const insertQuery = `INSERT INTO calls (${fixedDbColumns.join(', ')}) VALUES ${batchPlaceholders.join(', ')}`;
-        await query(insertQuery, batchValues);
+        const insertQuery = `INSERT INTO calls (${fixedDbColumns.join(', ')}) VALUES ${batchPlaceholders.join(', ')} RETURNING id`;
+        const result = await query(insertQuery, batchValues);
+
+        // Collect inserted call IDs
+        for (const row of result.rows) {
+          insertedCallIds.push(row.id);
+        }
+
         processed += batchProcessed;
         processedOther += batchProcessedOther;
       } catch (batchError: any) {
@@ -323,6 +331,12 @@ export async function POST(req: NextRequest) {
 
     const totalProcessed = processed + processedOther;
     console.log(`Upload complete: ${totalProcessed} processed (${processed} contracted + ${processedOther} other), ${errors} errors`);
+
+    // Trigger auto-exclusion evaluation for all inserted calls (async, non-blocking)
+    if (insertedCallIds.length > 0) {
+      console.log(`Triggering auto-exclusion evaluation for ${insertedCallIds.length} calls...`);
+      triggerBatchAsyncEvaluation(insertedCallIds);
+    }
 
     // Log audit event for successful upload
     try {
