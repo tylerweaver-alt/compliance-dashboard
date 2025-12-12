@@ -124,6 +124,7 @@ export async function GET(req: NextRequest) {
 
         -- exclusion fields
         is_excluded,
+        exclusion_type,
         exclusion_reason,
         is_auto_excluded,
         auto_exclusion_reason,
