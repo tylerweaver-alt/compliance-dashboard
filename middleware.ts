@@ -8,12 +8,6 @@ import type { NextRequest } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 
 export async function middleware(request: NextRequest) {
-  // Get the NextAuth session token
-  const token = await getToken({
-    req: request,
-    secret: process.env.NEXTAUTH_SECRET,
-  });
-
   const { pathname } = request.nextUrl;
 
   // Allow static assets through
@@ -21,12 +15,31 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Default-protect all API routes except a narrow allowlist
-  const allowedApiPrefixes = ['/api/auth', '/api/health'];
-  const isApiRoute = pathname.startsWith('/api/');
-  const isAllowedApi = allowedApiPrefixes.some((prefix) => pathname.startsWith(prefix));
+  // ALWAYS allow NextAuth API routes through without any checks
+  // This prevents middleware from interfering with authentication
+  if (pathname.startsWith('/api/auth')) {
+    return NextResponse.next();
+  }
 
-  if (isApiRoute && !isAllowedApi) {
+  // Allow health check API
+  if (pathname.startsWith('/api/health')) {
+    return NextResponse.next();
+  }
+
+  // Get the NextAuth session token (only for non-auth routes)
+  let token = null;
+  try {
+    token = await getToken({
+      req: request,
+      secret: process.env.NEXTAUTH_SECRET,
+    });
+  } catch (error) {
+    console.error('[Middleware] Error getting token:', error);
+    // Continue without token - will redirect to login if needed
+  }
+
+  // Protect other API routes
+  if (pathname.startsWith('/api/')) {
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
