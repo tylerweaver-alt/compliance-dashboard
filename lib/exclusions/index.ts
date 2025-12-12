@@ -116,22 +116,7 @@ export async function recordManualExclusion(
       ]
     );
 
-    // 3. Insert into audit_logs
-    // Note: Using only columns that exist in current schema
-    await client.query(
-      `INSERT INTO audit_logs (
-        action, target_type, target_id, summary, metadata, actor_email
-      ) VALUES ($1, $2, $3, $4, $5, $6)`,
-      [
-        'MANUAL_EXCLUSION',
-        'call',
-        callId.toString(),
-        `Manually excluded call`,
-        JSON.stringify({ reason, userId }),
-        userEmail,
-      ]
-    );
-
+    console.log(`[recordManualExclusion] Successfully excluded call ${callId}`);
     await client.query('COMMIT');
   } catch (error) {
     await client.query('ROLLBACK');
@@ -202,22 +187,7 @@ export async function revertManualExclusion(
       [now, userEmail, revertReason, callId]
     );
 
-    // 4. Insert into audit_logs
-    // Note: Using only columns that exist in current schema
-    await client.query(
-      `INSERT INTO audit_logs (
-        action, target_type, target_id, summary, metadata, actor_email
-      ) VALUES ($1, $2, $3, $4, $5, $6)`,
-      [
-        'REVERT_MANUAL_EXCLUSION',
-        'call',
-        callId.toString(),
-        `Reverted manual exclusion`,
-        JSON.stringify({ revertReason }),
-        userEmail,
-      ]
-    );
-
+    console.log(`[revertManualExclusion] Successfully reverted exclusion for call ${callId}`);
     await client.query('COMMIT');
   } catch (error) {
     await client.query('ROLLBACK');
