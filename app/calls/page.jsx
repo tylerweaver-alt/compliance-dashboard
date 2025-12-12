@@ -540,7 +540,6 @@ function CallsPageContent() {
   const [zones, setZones] = useState([]);
   const [exclusionModal, setExclusionModal] = useState({ open: false, callId: null });
   const [weatherModal, setWeatherModal] = useState({ open: false, callId: null });
-  const [exclusionFilter, setExclusionFilter] = useState('all'); // 'all' | 'included' | 'excluded'
 
   // Editable response time state
   const [editingResponseTime, setEditingResponseTime] = useState(null); // { callId, minutes }
@@ -776,13 +775,6 @@ function CallsPageContent() {
     ? calls
     : calls.filter(c => c.response_area === selectedZone);
 
-  // Filter by exclusion status
-  const exclusionFilteredCalls = zoneFilteredCalls.filter(c => {
-    if (exclusionFilter === 'included') return !c.is_any_excluded;
-    if (exclusionFilter === 'excluded') return c.is_any_excluded;
-    return true; // 'all'
-  });
-
   // =====================================================================
   // DEDUPLICATION LOGIC: Handle AirMed (AMx) and racing units
   // =====================================================================
@@ -892,7 +884,7 @@ function CallsPageContent() {
   };
 
   // Apply deduplication
-  const filteredCalls = deduplicateCalls(exclusionFilteredCalls);
+  const filteredCalls = deduplicateCalls(zoneFilteredCalls);
 
   // Only count calls where we made it to the scene (have arrived_at_scene_time)
   const sceneArrivedCalls = filteredCalls.filter(c => c.arrived_at_scene_time);
@@ -1470,43 +1462,7 @@ function CallsPageContent() {
             <h2 className="text-lg font-semibold text-slate-700 print:text-base">
               Call Details (Priority 1-3){selectedZone === 'all' && zones.length > 0 ? ' - All Response Zones' : ''}
             </h2>
-            <div className="flex items-center gap-3 print:hidden">
-              {/* Exclusion Filter Toggle */}
-              <div className="flex gap-1 bg-slate-100 p-0.5 rounded-lg">
-                <button
-                  onClick={() => setExclusionFilter('all')}
-                  className={`px-3 py-1 text-xs rounded-md transition-all ${
-                    exclusionFilter === 'all'
-                      ? 'bg-white text-slate-800 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-800'
-                  }`}
-                >
-                  All
-                </button>
-                <button
-                  onClick={() => setExclusionFilter('included')}
-                  className={`px-3 py-1 text-xs rounded-md transition-all ${
-                    exclusionFilter === 'included'
-                      ? 'bg-white text-green-700 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-800'
-                  }`}
-                >
-                  Included
-                </button>
-                <button
-                  onClick={() => setExclusionFilter('excluded')}
-                  className={`px-3 py-1 text-xs rounded-md transition-all ${
-                    exclusionFilter === 'excluded'
-                      ? 'bg-white text-amber-700 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-800'
-                  }`}
-                >
-                  Excluded
-                </button>
-              </div>
-              <span className="text-sm text-slate-500">{complianceCalls.length} calls</span>
-            </div>
-            <span className="text-sm text-slate-500 hidden print:block print:font-bold print:text-slate-800">{complianceCalls.length} calls</span>
+            <span className="text-sm text-slate-500 print:font-bold print:text-slate-800">{complianceCalls.length} calls</span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-xs calls-table">
