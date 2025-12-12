@@ -1715,7 +1715,6 @@ function CallsPageContent() {
           )}
         </div>
         </div> {/* End tab container */}
-      </div>
       </div> {/* End scrollable content area */}
 
       {/* Exclusion Modal */}
