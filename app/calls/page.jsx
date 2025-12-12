@@ -456,7 +456,9 @@ function AuditLogPanel({ callEdits, autoExclusions, isOpen }) {
                   }`}
                 >
                   {isAutoExclusion
-                    ? `#${callData.windowContext?.callPosition || '?'} of ${callData.windowContext?.callsInWindow || '?'} calls`
+                    ? callData.windowContext?.callPosition
+                      ? `#${callData.windowContext.callPosition} of ${callData.windowContext.callsInWindow} calls`
+                      : 'Auto-Excluded'
                     : isManualExclusion
                       ? 'User Excluded'
                       : `Total Edits: ${callData.edits?.length || 0}`}

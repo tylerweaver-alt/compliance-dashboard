@@ -61,10 +61,15 @@ class WeatherStrategy implements AutoExclusionStrategy {
 
       const weather = result.rows[0];
 
+      // Format reason similar to peak call load: "Severe Weather Alert: {type}"
+      const eventType = weather.weather_event_type || 'Unknown';
+      const severity = weather.weather_severity || '';
+      const formattedReason = `Severe Weather Alert: ${eventType}${severity ? ` (${severity})` : ''}`;
+
       return {
         strategyKey: this.key,
         shouldExclude: true,
-        reason: `Weather event: ${weather.weather_event_type} (${weather.weather_severity}) - ${weather.weather_area_desc}`,
+        reason: formattedReason,
         confidence: 0.95,
         metadata: {
           evaluatedAt: new Date().toISOString(),

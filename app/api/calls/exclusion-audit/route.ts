@@ -55,6 +55,7 @@ export async function GET(req: NextRequest) {
         c.excluded_by_user_id,
         el.id as log_id,
         el.strategy_key,
+        el.reason as log_reason,
         el.created_by_email,
         el.engine_metadata,
         p.name as parish_name,
@@ -76,6 +77,9 @@ export async function GET(req: NextRequest) {
       const isAuto = row.exclusion_type === 'AUTO';
       const metadata = row.engine_metadata || {};
 
+      // Use log_reason if available (from exclusion_logs), otherwise fall back to calls.exclusion_reason
+      const reason = row.log_reason || row.exclusion_reason;
+
       return {
         callId: row.id,
         callInfo: {
@@ -88,13 +92,13 @@ export async function GET(req: NextRequest) {
         exclusion: {
           type: row.exclusion_type || (isAuto ? 'AUTO' : 'MANUAL'),
           strategy: row.strategy_key || null,
-          reason: row.exclusion_reason,
+          reason: reason,
           excludedAt: row.excluded_at,
           excludedBy: isAuto ? 'System (Auto-Exclusion Engine)' : (row.excluded_by_name || row.excluded_by_email || row.created_by_email || 'Unknown'),
           parishName: row.parish_name,
         },
-        // Only include windowContext for auto-exclusions
-        ...(isAuto && metadata ? {
+        // Only include windowContext for auto-exclusions with peak call load metadata
+        ...(isAuto && metadata && metadata.callPosition ? {
           windowContext: {
             windowMinutes: metadata.windowMinutes || 45,
             callsInWindow: metadata.callsInWindow || 0,
