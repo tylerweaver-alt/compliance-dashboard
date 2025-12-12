@@ -36,8 +36,18 @@ export async function GET(req: Request) {
     if (err.message === 'UNAUTHORIZED' || err.message === 'FORBIDDEN') {
       return new NextResponse('Forbidden', { status: 403 });
     }
-    console.error('Error fetching audit logs', err);
-    return new NextResponse('Server error', { status: 500 });
+
+    // Check if table doesn't exist
+    if (err.code === '42P01') {
+      console.error('audit_logs table does not exist. Please run the migration in db/migrations/audit_logs.sql');
+      return NextResponse.json({
+        error: 'Audit logs table not found. Please contact administrator to run database migration.',
+        rows: []
+      }, { status: 200 });
+    }
+
+    console.error('Error fetching audit logs:', err);
+    return new NextResponse(`Server error: ${err.message}`, { status: 500 });
   }
 }
 
