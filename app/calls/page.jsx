@@ -91,24 +91,60 @@ function BreakdownItem({ label, value, isPercentage = false, highlight = false }
 function TimeEditModal({ isOpen, onClose, onSave, callId, fieldKey, currentValue }) {
   const [newValue, setNewValue] = useState('');
   const [reason, setReason] = useState('');
+  const [validationError, setValidationError] = useState('');
 
   // Reset form when modal opens
   useEffect(() => {
     if (isOpen) {
       setNewValue(currentValue || '');
       setReason('');
+      setValidationError('');
     }
   }, [isOpen, currentValue]);
 
   if (!isOpen) return null;
 
+  // Validate time format based on field type
+  const validateTimeFormat = (value, isResponseTime = false) => {
+    if (!value || !value.trim()) {
+      return 'Time value is required';
+    }
+
+    if (isResponseTime) {
+      // Response time format: MM:SS
+      const mmssPattern = /^(\d{1,2}):([0-5]\d)$/;
+      if (!mmssPattern.test(value.trim())) {
+        return 'Invalid format. Use MM:SS (e.g., 08:45)';
+      }
+    } else {
+      // Call time format: MM/DD/YY HH:MM:SS
+      const fullPattern = /^(0?[1-9]|1[0-2])\/(0?[1-9]|[12]\d|3[01])\/\d{2}\s+([01]?\d|2[0-3]):([0-5]\d):([0-5]\d)$/;
+      if (!fullPattern.test(value.trim())) {
+        return 'Invalid format. Use MM/DD/YY HH:MM:SS (e.g., 10/31/25 21:45:51)';
+      }
+    }
+
+    return null;
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
+
     if (!reason.trim()) {
-      alert('Please provide a reason for the time change');
+      setValidationError('Please provide a reason for the time change');
       return;
     }
-    onSave(callId, fieldKey, newValue, reason);
+
+    // Validate format
+    const isResponseTime = fieldKey === 'response_time';
+    const error = validateTimeFormat(newValue, isResponseTime);
+    if (error) {
+      setValidationError(error);
+      return;
+    }
+
+    setValidationError('');
+    onSave(callId, fieldKey, newValue.trim(), reason);
   };
 
   // Field labels for display
@@ -121,7 +157,12 @@ function TimeEditModal({ isOpen, onClose, onSave, callId, fieldKey, currentValue
     depart: 'Departed (Dept)',
     arrived: 'Arrived (Arvd)',
     available: 'Available (Avail)',
+    response_time: 'Response Time (Resp)',
   };
+
+  const isResponseTime = fieldKey === 'response_time';
+  const placeholder = isResponseTime ? 'MM:SS' : 'MM/DD/YY HH:MM:SS';
+  const formatExample = isResponseTime ? '08:45' : '10/31/25 21:45:51';
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 print:hidden">
@@ -134,6 +175,12 @@ function TimeEditModal({ isOpen, onClose, onSave, callId, fieldKey, currentValue
 
         <form onSubmit={handleSubmit} className="px-6 py-4">
           <div className="space-y-4">
+            {validationError && (
+              <div className="px-3 py-2 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
+                ⚠️ {validationError}
+              </div>
+            )}
+
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Current Value
@@ -150,13 +197,16 @@ function TimeEditModal({ isOpen, onClose, onSave, callId, fieldKey, currentValue
               <input
                 type="text"
                 value={newValue}
-                onChange={(e) => setNewValue(e.target.value)}
-                placeholder="MM/DD/YY HH:MM:SS"
+                onChange={(e) => {
+                  setNewValue(e.target.value);
+                  setValidationError(''); // Clear error on change
+                }}
+                placeholder={placeholder}
                 className="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
                 required
               />
               <p className="mt-1 text-xs text-slate-500">
-                Format: MM/DD/YY HH:MM:SS (e.g., 10/31/25 21:45:51)
+                Format: {placeholder} (e.g., {formatExample})
               </p>
             </div>
 
@@ -166,7 +216,10 @@ function TimeEditModal({ isOpen, onClose, onSave, callId, fieldKey, currentValue
               </label>
               <textarea
                 value={reason}
-                onChange={(e) => setReason(e.target.value)}
+                onChange={(e) => {
+                  setReason(e.target.value);
+                  setValidationError(''); // Clear error on change
+                }}
                 placeholder="Explain why this time is being changed..."
                 className="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                 rows={3}
@@ -1728,53 +1781,13 @@ function CallsPageContent() {
                         const col = ALL_COLUMNS[colId];
                         if (!col) return null;
 
-                        // Special handling for response time column - editable
+                        // Special handling for response time column - display only (calculated field)
                         if (col.isResponseTime) {
-                          const isEditing = editingResponseTime?.callId === call.id;
-                          const hasOverride = responseTimeOverrides[call.id] !== undefined;
-
                           return (
-                            <td key={colId} className={`px-1 py-0.5 font-semibold whitespace-nowrap ${isNonCompliant ? 'text-red-600' : 'text-green-600'} print:pointer-events-none`}>
-                              {isEditing ? (
-                                <div className="flex items-center gap-0.5">
-                                  <input
-                                    type="text"
-                                    defaultValue={editingResponseTime.value}
-                                    className="w-14 px-1 py-0 text-xs border border-slate-300 rounded text-center"
-                                    autoFocus
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter') {
-                                        saveResponseTime(call.id, e.target.value);
-                                      } else if (e.key === 'Escape') {
-                                        setEditingResponseTime(null);
-                                      }
-                                    }}
-                                    onBlur={(e) => saveResponseTime(call.id, e.target.value)}
-                                  />
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-0.5 group/resp cursor-pointer print:cursor-default">
-                                  <span
-                                    onClick={() => handleResponseTimeEdit(call.id, responseMinutes)}
-                                    className={`${hasOverride ? 'underline decoration-dotted' : ''}`}
-                                    title={hasOverride ? 'Modified (click to edit)' : 'Click to edit'}
-                                  >
-                                    {formatResponseTime(responseMinutes)}
-                                  </span>
-                                  <div className="flex flex-col opacity-0 group-hover/resp:opacity-100 transition-opacity print:hidden">
-                                    <button
-                                      onClick={(e) => { e.stopPropagation(); adjustResponseTime(call.id, responseMinutes, -1); }}
-                                      className="text-[8px] leading-none text-slate-400 hover:text-slate-600"
-                                      title="Decrease 1 second"
-                                    >▲</button>
-                                    <button
-                                      onClick={(e) => { e.stopPropagation(); adjustResponseTime(call.id, responseMinutes, 1); }}
-                                      className="text-[8px] leading-none text-slate-400 hover:text-slate-600"
-                                      title="Increase 1 second"
-                                    >▼</button>
-                                  </div>
-                                </div>
-                              )}
+                            <td key={colId} className={`px-1 py-0.5 font-semibold whitespace-nowrap ${isNonCompliant ? 'text-red-600' : 'text-green-600'}`}>
+                              <span title="Response time is calculated from Rcvd and OnScn times. Edit those fields to change this value.">
+                                {formatResponseTime(responseMinutes)}
+                              </span>
                             </td>
                           );
                         }
