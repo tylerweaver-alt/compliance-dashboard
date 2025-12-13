@@ -110,17 +110,38 @@ function TimeEditModal({ isOpen, onClose, onSave, callId, fieldKey, currentValue
       return 'Time value is required';
     }
 
+    const trimmedValue = value.trim();
+
     if (isResponseTime) {
       // Response time format: MM:SS
-      const mmssPattern = /^(\d{1,2}):([0-5]\d)$/;
-      if (!mmssPattern.test(value.trim())) {
+      const mmssPattern = /^(\d{1,3}):([0-5]\d)$/;
+      if (!mmssPattern.test(trimmedValue)) {
         return 'Invalid format. Use MM:SS (e.g., 08:45)';
       }
     } else {
-      // Call time format: MM/DD/YY HH:MM:SS
-      const fullPattern = /^(0?[1-9]|1[0-2])\/(0?[1-9]|[12]\d|3[01])\/\d{2}\s+([01]?\d|2[0-3]):([0-5]\d):([0-5]\d)$/;
-      if (!fullPattern.test(value.trim())) {
+      // Call time format: M/D/YY HH:MM:SS or MM/DD/YY HH:MM:SS
+      // More flexible pattern to handle single or double digit months/days
+      const fullPattern = /^(\d{1,2})\/(\d{1,2})\/(\d{2})\s+(\d{1,2}):(\d{2}):(\d{2})$/;
+
+      if (!fullPattern.test(trimmedValue)) {
         return 'Invalid format. Use MM/DD/YY HH:MM:SS (e.g., 10/31/25 21:45:51)';
+      }
+
+      // Additional validation: check if values are in valid ranges
+      const match = trimmedValue.match(fullPattern);
+      if (match) {
+        const [, month, day, year, hours, minutes, seconds] = match;
+        const m = parseInt(month, 10);
+        const d = parseInt(day, 10);
+        const h = parseInt(hours, 10);
+        const min = parseInt(minutes, 10);
+        const sec = parseInt(seconds, 10);
+
+        if (m < 1 || m > 12) return 'Month must be between 1 and 12';
+        if (d < 1 || d > 31) return 'Day must be between 1 and 31';
+        if (h > 23) return 'Hours must be between 0 and 23';
+        if (min > 59) return 'Minutes must be between 0 and 59';
+        if (sec > 59) return 'Seconds must be between 0 and 59';
       }
     }
 
