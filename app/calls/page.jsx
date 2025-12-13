@@ -1150,7 +1150,7 @@ function CallsPageContent() {
       await fetchCalls();
 
       // Refresh audit log
-      await fetchCallEdits();
+      await fetchAuditLog();
 
       setTimeEditModal({ open: false, callId: null, fieldKey: null, currentValue: null });
 
