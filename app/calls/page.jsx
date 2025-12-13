@@ -87,6 +87,115 @@ function BreakdownItem({ label, value, isPercentage = false, highlight = false }
   );
 }
 
+// Time Edit Modal - for editing call timestamps
+function TimeEditModal({ isOpen, onClose, onSave, callId, fieldKey, currentValue }) {
+  const [newValue, setNewValue] = useState('');
+  const [reason, setReason] = useState('');
+
+  // Reset form when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setNewValue(currentValue || '');
+      setReason('');
+    }
+  }, [isOpen, currentValue]);
+
+  if (!isOpen) return null;
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!reason.trim()) {
+      alert('Please provide a reason for the time change');
+      return;
+    }
+    onSave(callId, fieldKey, newValue, reason);
+  };
+
+  // Field labels for display
+  const fieldLabels = {
+    received: 'Received (Rcvd)',
+    dispatched: 'Dispatched (Disp)',
+    enroute: 'Enroute (Enrt)',
+    staged: 'Staged (Stgd)',
+    on_scene: 'On Scene (OnScn)',
+    depart: 'Departed (Dept)',
+    arrived: 'Arrived (Arvd)',
+    available: 'Available (Avail)',
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 print:hidden">
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+        <div className="px-6 py-4 border-b border-slate-200">
+          <h3 className="text-lg font-semibold text-slate-900">
+            Edit {fieldLabels[fieldKey] || fieldKey}
+          </h3>
+        </div>
+
+        <form onSubmit={handleSubmit} className="px-6 py-4">
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Current Value
+              </label>
+              <div className="px-3 py-2 bg-slate-100 rounded border border-slate-300 text-slate-600 font-mono text-sm">
+                {currentValue || '—'}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                New Value <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={newValue}
+                onChange={(e) => setNewValue(e.target.value)}
+                placeholder="MM/DD/YY HH:MM:SS"
+                className="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                required
+              />
+              <p className="mt-1 text-xs text-slate-500">
+                Format: MM/DD/YY HH:MM:SS (e.g., 10/31/25 21:45:51)
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Reason for Change <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="Explain why this time is being changed..."
+                className="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                rows={3}
+                required
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-2 mt-6">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-2 bg-slate-200 text-slate-700 rounded hover:bg-slate-300 font-medium"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-medium"
+            >
+              Save Change
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // Exclusion Modal
 // Weather Exclusion Details Modal - shows weather alert info for auto-excluded calls
 function WeatherExclusionModal({ isOpen, onClose, callId }) {
@@ -298,14 +407,14 @@ const ALL_COLUMNS = {
     className: 'text-slate-700',
     title: true // Enable tooltip with full address
   },
-  received: { label: 'Rcvd', getValue: (call, parseTimeOnly) => parseTimeOnly(call.call_in_que_time), className: 'text-slate-600' },
-  dispatched: { label: 'Disp', getValue: (call, parseTimeOnly) => parseTimeOnly(call.assigned_time), className: 'text-slate-600' },
-  enroute: { label: 'Enrt', getValue: (call, parseTimeOnly) => parseTimeOnly(call.enroute_time), className: 'text-slate-600' },
-  staged: { label: 'Stgd', getValue: (call, parseTimeOnly) => parseTimeOnly(call.staged_time), className: 'text-slate-600' },
-  on_scene: { label: 'OnScn', getValue: (call, parseTimeOnly) => parseTimeOnly(call.arrived_at_scene_time), className: 'text-slate-600' },
-  depart: { label: 'Dept', getValue: (call, parseTimeOnly) => parseTimeOnly(call.depart_scene_time), className: 'text-slate-600' },
-  arrived: { label: 'Arvd', getValue: (call, parseTimeOnly) => parseTimeOnly(call.arrived_destination_time), className: 'text-slate-600' },
-  available: { label: 'Avail', getValue: (call, parseTimeOnly) => parseTimeOnly(call.call_cleared_time), className: 'text-slate-600' },
+  received: { label: 'Rcvd', getValue: (call, parseTimeOnly) => parseTimeOnly(call.call_in_que_time), className: 'text-slate-600', isEditableTime: true, fieldKey: 'received', dbField: 'call_in_que_time' },
+  dispatched: { label: 'Disp', getValue: (call, parseTimeOnly) => parseTimeOnly(call.assigned_time), className: 'text-slate-600', isEditableTime: true, fieldKey: 'dispatched', dbField: 'assigned_time' },
+  enroute: { label: 'Enrt', getValue: (call, parseTimeOnly) => parseTimeOnly(call.enroute_time), className: 'text-slate-600', isEditableTime: true, fieldKey: 'enroute', dbField: 'enroute_time' },
+  staged: { label: 'Stgd', getValue: (call, parseTimeOnly) => parseTimeOnly(call.staged_time), className: 'text-slate-600', isEditableTime: true, fieldKey: 'staged', dbField: 'staged_time' },
+  on_scene: { label: 'OnScn', getValue: (call, parseTimeOnly) => parseTimeOnly(call.arrived_at_scene_time), className: 'text-slate-600', isEditableTime: true, fieldKey: 'on_scene', dbField: 'arrived_at_scene_time' },
+  depart: { label: 'Dept', getValue: (call, parseTimeOnly) => parseTimeOnly(call.depart_scene_time), className: 'text-slate-600', isEditableTime: true, fieldKey: 'depart', dbField: 'depart_scene_time' },
+  arrived: { label: 'Arvd', getValue: (call, parseTimeOnly) => parseTimeOnly(call.arrived_destination_time), className: 'text-slate-600', isEditableTime: true, fieldKey: 'arrived', dbField: 'arrived_destination_time' },
+  available: { label: 'Avail', getValue: (call, parseTimeOnly) => parseTimeOnly(call.call_cleared_time), className: 'text-slate-600', isEditableTime: true, fieldKey: 'available', dbField: 'call_cleared_time' },
   response: { label: 'Resp', isResponseTime: true },
   status: { label: 'Status', isStatus: true },
   priority: { label: 'Pri', getValue: (call) => call.priority, className: 'text-slate-700' },
@@ -577,6 +686,10 @@ function CallsPageContent() {
   // Editable response time state
   const [editingResponseTime, setEditingResponseTime] = useState(null); // { callId, minutes }
   const [responseTimeOverrides, setResponseTimeOverrides] = useState({}); // { callId: minutes }
+
+  // Editable call times state
+  const [editingCallTime, setEditingCallTime] = useState(null); // { callId, fieldKey, value }
+  const [timeEditModal, setTimeEditModal] = useState({ open: false, callId: null, fieldKey: null, currentValue: null });
 
   // Audit log state
   const [auditLogData, setAuditLogData] = useState([]);
@@ -1002,6 +1115,50 @@ function CallsPageContent() {
   const adjustResponseTime = (callId, currentMinutes, deltaSeconds) => {
     const newMinutes = Math.max(0, currentMinutes + (deltaSeconds / 60));
     setResponseTimeOverrides(prev => ({ ...prev, [callId]: newMinutes }));
+  };
+
+  // Handle call time edit - open modal
+  const handleCallTimeEdit = (callId, fieldKey, currentValue) => {
+    setTimeEditModal({ open: true, callId, fieldKey, currentValue });
+  };
+
+  // Save edited call time
+  const saveCallTime = async (callId, fieldKey, newValue, reason) => {
+    if (!reason || reason.trim().length === 0) {
+      alert('Please provide a reason for the time change');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/calls/update-times', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          callId,
+          updates: { [fieldKey]: newValue },
+          reason: reason.trim(),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update time');
+      }
+
+      // Refresh calls data to show updated time
+      await fetchCalls();
+
+      // Refresh audit log
+      await fetchCallEdits();
+
+      setTimeEditModal({ open: false, callId: null, fieldKey: null, currentValue: null });
+
+      alert(`✅ ${data.message}`);
+    } catch (error) {
+      console.error('Error updating call time:', error);
+      alert(`❌ Error: ${error.message}`);
+    }
   };
 
   // Parse time from datetime string like "10/31/25 21:45:51" to just "21:45:51"
@@ -1685,6 +1842,27 @@ function CallsPageContent() {
                           );
                         }
 
+                        // Editable time columns (Rcvd, Disp, Enrt, Stgd, OnScn, Dept, Arvd, Avail)
+                        if (col.isEditableTime) {
+                          const timeValue = col.getValue(call, parseTimeOnly);
+                          const fullValue = call[col.dbField];
+
+                          return (
+                            <td key={colId} className={`px-1 py-0.5 whitespace-nowrap ${col.className || 'text-slate-600'} print:pointer-events-none`}>
+                              <div className="group/time cursor-pointer hover:bg-slate-100 px-1 rounded transition-colors print:cursor-default print:hover:bg-transparent"
+                                   onClick={() => handleCallTimeEdit(call.id, col.fieldKey, fullValue)}
+                                   title="Click to edit time">
+                                <span className="group-hover/time:underline decoration-dotted">
+                                  {timeValue}
+                                </span>
+                                <span className="ml-0.5 opacity-0 group-hover/time:opacity-100 text-[8px] text-slate-400 print:hidden">
+                                  ✎
+                                </span>
+                              </div>
+                            </td>
+                          );
+                        }
+
                         // Regular columns
                         const value = col.getValue(call, parseTimeOnly, parseCallNumber);
                         // For address column, add title tooltip with full address
@@ -1753,6 +1931,16 @@ function CallsPageContent() {
         </div>
         </div> {/* End tab container */}
       </div> {/* End scrollable content area */}
+
+      {/* Time Edit Modal */}
+      <TimeEditModal
+        isOpen={timeEditModal.open}
+        callId={timeEditModal.callId}
+        fieldKey={timeEditModal.fieldKey}
+        currentValue={timeEditModal.currentValue}
+        onClose={() => setTimeEditModal({ open: false, callId: null, fieldKey: null, currentValue: null })}
+        onSave={saveCallTime}
+      />
 
       {/* Exclusion Modal */}
       <ExclusionModal
