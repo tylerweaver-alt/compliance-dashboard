@@ -489,7 +489,7 @@ const ALL_COLUMNS = {
   depart: { label: 'Dept', getValue: (call, parseTimeOnly) => parseTimeOnly(call.depart_scene_time), className: 'text-slate-600', isEditableTime: true, fieldKey: 'depart', dbField: 'depart_scene_time' },
   arrived: { label: 'Arvd', getValue: (call, parseTimeOnly) => parseTimeOnly(call.arrived_destination_time), className: 'text-slate-600', isEditableTime: true, fieldKey: 'arrived', dbField: 'arrived_destination_time' },
   available: { label: 'Avail', getValue: (call, parseTimeOnly) => parseTimeOnly(call.call_cleared_time), className: 'text-slate-600', isEditableTime: true, fieldKey: 'available', dbField: 'call_cleared_time' },
-  response: { label: 'Resp', isResponseTime: true },
+  response: { label: 'Resp', isResponseTime: true, isEditableTime: true, fieldKey: 'response_time', dbField: 'queue_response_time' },
   status: { label: 'Status', isStatus: true },
   priority: { label: 'Pri', getValue: (call) => call.priority, className: 'text-slate-700' },
   response_area: { label: 'Zone', getValue: (call) => formatZoneName(call.response_area) || '—', className: 'text-slate-700' },
@@ -1802,13 +1802,22 @@ function CallsPageContent() {
                         const col = ALL_COLUMNS[colId];
                         if (!col) return null;
 
-                        // Special handling for response time column - display only (calculated field)
+                        // Special handling for response time column - editable
                         if (col.isResponseTime) {
+                          const responseTimeValue = formatResponseTime(responseMinutes);
+
                           return (
-                            <td key={colId} className={`px-1 py-0.5 font-semibold whitespace-nowrap ${isNonCompliant ? 'text-red-600' : 'text-green-600'}`}>
-                              <span title="Response time is calculated from Rcvd and OnScn times. Edit those fields to change this value.">
-                                {formatResponseTime(responseMinutes)}
-                              </span>
+                            <td key={colId} className={`px-1 py-0.5 font-semibold whitespace-nowrap ${isNonCompliant ? 'text-red-600' : 'text-green-600'} print:pointer-events-none`}>
+                              <div className="group/time cursor-pointer hover:bg-slate-100 px-1 rounded transition-colors print:cursor-default print:hover:bg-transparent"
+                                   onClick={() => handleCallTimeEdit(call.id, col.fieldKey, responseTimeValue)}
+                                   title="Click to edit response time">
+                                <span className="group-hover/time:underline decoration-dotted">
+                                  {responseTimeValue}
+                                </span>
+                                <span className="ml-0.5 opacity-0 group-hover/time:opacity-100 text-[8px] text-slate-400 print:hidden">
+                                  ✎
+                                </span>
+                              </div>
                             </td>
                           );
                         }

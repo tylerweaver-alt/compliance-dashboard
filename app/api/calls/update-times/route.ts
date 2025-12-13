@@ -22,6 +22,7 @@ const FIELD_MAP: Record<string, string> = {
   depart: 'depart_scene_time',
   arrived: 'arrived_destination_time',
   available: 'call_cleared_time',
+  response_time: 'queue_response_time',
 };
 
 // Human-readable labels for audit log
@@ -34,6 +35,7 @@ const FIELD_LABELS: Record<string, string> = {
   depart_scene_time: 'Departed Scene',
   arrived_destination_time: 'Arrived Destination',
   call_cleared_time: 'Call Cleared / Available',
+  queue_response_time: 'Response Time',
 };
 
 export async function POST(req: NextRequest) {
@@ -82,7 +84,7 @@ export async function POST(req: NextRequest) {
     // Process each update
     for (const [fieldKey, newValue] of Object.entries(updates)) {
       const dbColumn = FIELD_MAP[fieldKey] || fieldKey;
-      
+
       // Validate column exists
       if (!FIELD_LABELS[dbColumn]) {
         await client.query('ROLLBACK');
@@ -90,13 +92,28 @@ export async function POST(req: NextRequest) {
       }
 
       const oldValue = currentCall[dbColumn];
-      
+
+      // Convert MM:SS to HH:MM:SS for response_time field
+      let valueToStore = newValue;
+      if (dbColumn === 'queue_response_time' && newValue) {
+        // Input format: MM:SS (e.g., "08:45")
+        // Storage format: HH:MM:SS (e.g., "00:08:45")
+        const match = newValue.match(/^(\d{1,3}):(\d{2})$/);
+        if (match) {
+          const minutes = parseInt(match[1], 10);
+          const seconds = match[2];
+          const hours = Math.floor(minutes / 60);
+          const remainingMinutes = minutes % 60;
+          valueToStore = `${String(hours).padStart(2, '0')}:${String(remainingMinutes).padStart(2, '0')}:${seconds}`;
+        }
+      }
+
       // Only update if value changed
-      if (oldValue !== newValue) {
+      if (oldValue !== valueToStore) {
         // Update the call record
         await client.query(
           `UPDATE calls SET ${dbColumn} = $1 WHERE id = $2`,
-          [newValue, callId]
+          [valueToStore, callId]
         );
 
         // Log to time_edit_logs
@@ -122,7 +139,7 @@ export async function POST(req: NextRequest) {
           callId,
           dbColumn,
           oldValue,
-          newValue,
+          valueToStore,
           JSON.stringify(currentCall),
           session.user.id || null,
           session.user.email,
