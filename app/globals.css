@@ -226,6 +226,56 @@ body {
     padding: 4px 6px !important;
     white-space: nowrap !important;
   }
+
+  /* Audit Log Print Styles */
+  .audit-log-print {
+    page-break-before: always;
+  }
+
+  .audit-log-header {
+    background-color: #f1f5f9 !important;
+    padding: 8px 16px !important;
+    border-bottom: 1px solid #cbd5e1 !important;
+  }
+
+  .audit-log-call-header {
+    padding: 6px 12px !important;
+    font-size: 10px !important;
+    border-bottom: 1px solid #94a3b8 !important;
+  }
+
+  .audit-log-badge {
+    font-size: 8px !important;
+    padding: 2px 6px !important;
+  }
+
+  .audit-log-row-even,
+  .audit-log-row-odd {
+    padding: 6px 12px !important;
+    font-size: 9px !important;
+  }
+
+  .audit-log-row-even {
+    background-color: #f8fafc !important;
+  }
+
+  .audit-log-row-odd {
+    background-color: white !important;
+  }
+
+  /* Fix spacing in audit log entries */
+  .audit-log-print .font-mono {
+    font-family: 'Courier New', monospace !important;
+    font-size: 9px !important;
+  }
+
+  .audit-log-print .text-xs {
+    font-size: 9px !important;
+  }
+
+  .audit-log-print .min-w-\[200px\] {
+    min-width: 180px !important;
+  }
 }
 
 /* Heatmap Controls */

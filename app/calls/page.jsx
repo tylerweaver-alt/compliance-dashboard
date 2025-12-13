@@ -1757,7 +1757,7 @@ function CallsPageContent() {
           </div>
 
           {/* Call Details Tab Content */}
-          <div className={`${activeTab === 'calls' ? '' : 'hidden'} print:block bg-white rounded-xl overflow-hidden shadow-sm border border-slate-200 print:shadow-none print:border-0`}>
+          <div className={`${activeTab === 'calls' ? '' : 'hidden'} ${activeTab === 'calls' ? 'print:block' : 'print:hidden'} bg-white rounded-xl overflow-hidden shadow-sm border border-slate-200 print:shadow-none print:border-0`}>
           <div className="px-6 py-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 print:py-2 print:hidden">
             <h2 className="text-lg font-semibold text-slate-700 print:text-base">
               Call Details (Priority 1-3){selectedZone === 'all' && zones.length > 0 ? ' - All Response Zones' : ''}
@@ -1944,7 +1944,7 @@ function CallsPageContent() {
         </div> {/* End Call Details Tab Content */}
 
         {/* Audit Log Tab Content */}
-        <div className={`${activeTab === 'audit' ? '' : 'hidden'} print:block`}>
+        <div className={`${activeTab === 'audit' ? '' : 'hidden'} ${activeTab === 'audit' ? 'print:block' : 'print:hidden'}`}>
           {auditLogLoading || autoExclusionAuditLoading ? (
             <div className="p-8 text-center text-slate-500">Loading audit log...</div>
           ) : auditLogData.length > 0 || autoExclusionAuditData.length > 0 ? (
