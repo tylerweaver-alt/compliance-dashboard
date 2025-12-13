@@ -18,8 +18,10 @@
     "csv-parse": "^6.1.0",
     "leaflet": "^1.9.4",
     "leaflet.heat": "^0.2.0",
+    "mssql": "^12.2.0",
     "next": "^16.0.7",
     "next-auth": "^4.24.13",
+    "otplib": "^12.0.1",
     "pg": "^8.16.3",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
@@ -36,6 +38,7 @@
     "dotenv": "^17.2.3",
     "eslint": "^9",
     "eslint-config-next": "16.0.3",
+    "napi-postinstall": "^0.3.4",
     "tailwindcss": "^4",
     "ts-node": "^10.9.2",
     "typescript": "^5"

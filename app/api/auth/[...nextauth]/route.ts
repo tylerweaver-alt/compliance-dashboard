@@ -1,3 +1,5 @@
+console.log('[Auth Debug] GOOGLE_CLIENT_ID:', process.env.GOOGLE_CLIENT_ID?.substring(0, 30) + '...');
+
 /**
  * NextAuth configuration for the compliance dashboard.
  * Handles Google auth, Neon user lookup, audit events, and guarded dev bypass.
@@ -17,6 +19,20 @@ const pool = new Pool({
 });
 
 // ============================================================================
+// SUPERADMIN ALLOWLIST
+// Secondary safeguard: these emails are always treated as superadmin if authenticated
+// ============================================================================
+
+const SUPERADMIN_EMAIL_ALLOWLIST = new Set([
+  'tylerkweaver20@gmail.com',
+  'jrc7192@gmail.com',
+]);
+
+function isEmailAllowlistedSuperadmin(email: string): boolean {
+  return SUPERADMIN_EMAIL_ALLOWLIST.has(email.toLowerCase());
+}
+
+// ============================================================================
 // HELPER: Look up user in Neon Postgres
 // ============================================================================
 
@@ -28,6 +44,7 @@ interface DbUser {
   role: string;
   is_active: boolean;
   is_admin: boolean;
+  is_superadmin: boolean;
   allowed_regions: string[];
   has_all_regions: boolean;
 }
@@ -36,8 +53,13 @@ async function getUserFromDb(email: string): Promise<DbUser | null> {
   try {
     const client = await pool.connect();
     try {
+      // Use COALESCE for is_superadmin in case the column doesn't exist yet (migration not run)
+      // This query handles both scenarios: column exists or doesn't exist
       const result = await client.query<DbUser>(
-        `SELECT id, email, full_name, display_name, role, is_active, is_admin, allowed_regions, has_all_regions
+        `SELECT
+           id, email, full_name, display_name, role, is_active, is_admin,
+           allowed_regions, has_all_regions,
+           COALESCE(is_superadmin, false) AS is_superadmin
          FROM users
          WHERE LOWER(email) = LOWER($1)
          LIMIT 1`,
@@ -48,8 +70,29 @@ async function getUserFromDb(email: string): Promise<DbUser | null> {
       client.release();
     }
   } catch (error) {
-    console.error('[NextAuth] Database query failed:', error);
-    return null;
+    // If the query fails (e.g., is_superadmin column doesn't exist), try without it
+    console.error('[NextAuth] Database query failed, trying fallback:', error);
+    try {
+      const client = await pool.connect();
+      try {
+        const result = await client.query(
+          `SELECT id, email, full_name, display_name, role, is_active, is_admin, allowed_regions, has_all_regions
+           FROM users
+           WHERE LOWER(email) = LOWER($1)
+           LIMIT 1`,
+          [email]
+        );
+        if (result.rows[0]) {
+          return { ...result.rows[0], is_superadmin: false } as DbUser;
+        }
+        return null;
+      } finally {
+        client.release();
+      }
+    } catch (fallbackError) {
+      console.error('[NextAuth] Fallback query also failed:', fallbackError);
+      return null;
+    }
   }
 }
 
@@ -95,6 +138,7 @@ function getDevBypassUser(): DbUser {
     role: 'admin',
     is_active: true,
     is_admin: true,
+    is_superadmin: true,
     allowed_regions: [],
     has_all_regions: true,
   };
@@ -126,7 +170,10 @@ export const authOptions: NextAuthOptions = {
         return false;
       }
 
-      // 2. Allow specific external emails from env var
+      // 2. Check if email is an allowlisted superadmin (can bypass @acadian.com domain check)
+      const isAllowlistedSuperadmin = isEmailAllowlistedSuperadmin(email);
+
+      // 3. Allow specific external emails from env var
       const allowedExternal = (process.env.ALLOWED_EXTERNAL_EMAILS ?? '')
         .split(',')
         .map((e) => e.trim().toLowerCase())
@@ -137,28 +184,37 @@ export const authOptions: NextAuthOptions = {
         return true;
       }
 
-      // 3. Allow @acadian.com domain (normal internal users)
+      // 4. Allowlisted superadmins can bypass domain check, but still need DB check
+      if (isAllowlistedSuperadmin) {
+        const dbUser = await getUserFromDb(email);
+        if (!dbUser) {
+          console.warn(`[NextAuth] Sign-in denied (superadmin allowlist): ${email} not in database`);
+          return false;
+        }
+        if (!dbUser.is_active) {
+          console.warn(`[NextAuth] Sign-in denied (superadmin allowlist): ${email} is inactive in database`);
+          return false;
+        }
+        console.log(`[NextAuth] Sign-in allowed (superadmin allowlist): ${email}`);
+        return true;
+      }
+
+      // 5. Allow @acadian.com domain (normal internal users)
       if (!email.endsWith('@acadian.com')) {
         console.warn(`[NextAuth] Sign-in denied: Non-Acadian, not in external allowlist (${email})`);
         return false;
       }
 
-      // 4. Look up user in database
+      // 6. Look up user in database
       const dbUser = await getUserFromDb(email);
 
-      // 5. If user found and active, allow
+      // 7. If user found and active, allow
       if (dbUser && dbUser.is_active) {
         console.log(`[NextAuth] Sign-in allowed: ${email} (role: ${dbUser.role})`);
         return true;
       }
 
-      // 6. DEV FAILSAFE: Allow tyler.weaver@acadian.com even if DB lookup fails
-      if (isDevBypassEnabled() && email === DEV_BYPASS_EMAIL) {
-        console.warn(`[NextAuth] DEV BYPASS: Allowing ${email} despite DB issues`);
-        return true;
-      }
-
-      // 7. Otherwise deny
+      // 8. Otherwise deny
       if (!dbUser) {
         console.warn(`[NextAuth] Sign-in denied: User not found in database (${email})`);
       } else if (!dbUser.is_active) {
@@ -189,6 +245,8 @@ export const authOptions: NextAuthOptions = {
           session.user.has_all_regions = dbUser.has_all_regions;
           session.user.is_admin = dbUser.is_admin;
           session.user.display_name = dbUser.display_name || dbUser.full_name || session.user.name;
+
+          session.user.is_superadmin = Boolean(dbUser.is_superadmin) || isEmailAllowlistedSuperadmin(email);
         }
       }
       return session;
@@ -230,6 +288,7 @@ export const authOptions: NextAuthOptions = {
                 provider: account?.provider,
                 is_new_user: isNewUser,
                 role: dbUser?.role,
+                is_superadmin: Boolean(dbUser?.is_superadmin) || isEmailAllowlistedSuperadmin(email),
               }),
             ]
           );

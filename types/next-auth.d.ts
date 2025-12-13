@@ -18,6 +18,7 @@ declare module 'next-auth' {
       allowed_regions?: string[];
       has_all_regions?: boolean;
       is_admin?: boolean;
+      is_superadmin?: boolean;
       display_name?: string | null;
     };
   }
@@ -27,6 +28,7 @@ declare module 'next-auth' {
     allowed_regions?: string[];
     has_all_regions?: boolean;
     is_admin?: boolean;
+    is_superadmin?: boolean;
     display_name?: string | null;
   }
 }
@@ -37,6 +39,7 @@ declare module 'next-auth/jwt' {
     allowed_regions?: string[];
     has_all_regions?: boolean;
     is_admin?: boolean;
+    is_superadmin?: boolean;
     display_name?: string | null;
   }
 }

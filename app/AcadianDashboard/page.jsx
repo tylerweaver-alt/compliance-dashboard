@@ -550,6 +550,47 @@ function Dashboard({ user, onLogout }) {
   // Check if current user has admin privileges
   const isAdmin = user?.is_admin === true || (user?.role && ADMIN_ROLES.includes(user.role));
   const canAccessHeatmapSettings = user?.role && HEATMAP_SETTINGS_ROLES.includes(user.role);
+  const isSuperadmin = user?.is_superadmin === true;
+
+  // Superadmin email allowlist for button visibility (backend still validates)
+  const SUPERADMIN_EMAILS = ['tyler.weaver@acadian.com', 'jrc7192@gmail.com', 'tylerkweaver20@gmail.com'];
+  const userEmail = user?.email?.toLowerCase() || '';
+  const showSysadminButton = SUPERADMIN_EMAILS.includes(userEmail);
+
+  // 2FA Modal state
+  const [show2FAModal, setShow2FAModal] = useState(false);
+  const [twoFACode, setTwoFACode] = useState('');
+  const [twoFAError, setTwoFAError] = useState('');
+  const [twoFALoading, setTwoFALoading] = useState(false);
+
+  // 2FA verification handler
+  const handleVerify2FA = async () => {
+    if (!twoFACode || twoFACode.length !== 6) {
+      setTwoFAError('Please enter a 6-digit code');
+      return;
+    }
+    setTwoFALoading(true);
+    setTwoFAError('');
+    try {
+      const res = await fetch('/api/sysadmin/verify-2fa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: twoFACode }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setShow2FAModal(false);
+        setTwoFACode('');
+        router.push('/sysadmin');
+      } else {
+        setTwoFAError(data.error || 'Invalid code');
+      }
+    } catch (err) {
+      setTwoFAError('Verification failed');
+    } finally {
+      setTwoFALoading(false);
+    }
+  };
 
   // =========================================================================
   // REGION DATA FROM DATABASE
@@ -863,6 +904,25 @@ function Dashboard({ user, onLogout }) {
                     </svg>
                     Heatmap Settings
                   </button>
+                )}
+                {showSysadminButton && (
+                  <>
+                    <div className="my-1 h-px bg-slate-100" />
+                    <button
+                      onClick={() => {
+                        setUserMenuOpen(false);
+                        setTwoFACode('');
+                        setTwoFAError('');
+                        setShow2FAModal(true);
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm font-medium text-amber-700 hover:bg-amber-50 flex items-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
+                      </svg>
+                      Sysadmin
+                    </button>
+                  </>
                 )}
                 <hr className="my-1 border-slate-200" />
                 <button
@@ -1270,6 +1330,46 @@ function Dashboard({ user, onLogout }) {
         onClose={() => setShowAdminSettings(false)}
         onRefreshDashboard={handleRefreshDashboard}
       />
+
+      {/* Sysadmin 2FA Modal */}
+      {show2FAModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
+            <h3 className="text-lg font-semibold text-slate-800 mb-4">Sysadmin Verification</h3>
+            <p className="text-sm text-slate-600 mb-4">
+              Enter the 6-digit code from your authenticator app.
+            </p>
+            <input
+              type="text"
+              maxLength={6}
+              value={twoFACode}
+              onChange={(e) => setTwoFACode(e.target.value.replace(/\D/g, ''))}
+              onKeyDown={(e) => e.key === 'Enter' && handleVerify2FA()}
+              placeholder="000000"
+              className="w-full text-center text-2xl tracking-widest font-mono text-slate-900 border border-slate-300 rounded-lg px-4 py-3 mb-3 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+              autoFocus
+            />
+            {twoFAError && (
+              <p className="text-sm text-red-600 mb-3">{twoFAError}</p>
+            )}
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShow2FAModal(false)}
+                className="flex-1 px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleVerify2FA}
+                disabled={twoFALoading || twoFACode.length !== 6}
+                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {twoFALoading ? 'Verifying...' : 'Verify'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Live Clock - Bottom Right Corner */}
       <div className="fixed bottom-4 right-4 text-sm text-slate-400 bg-white/80 backdrop-blur-sm px-3 py-1.5 rounded-lg shadow-sm border border-slate-200">
