@@ -4,7 +4,7 @@
  */
 
 import { query } from '@/lib/db';
-import { fetchRowsNewerThanWatermark, SqlServerCallRow, getMaskedConnectionInfo } from './sqlserverAdapter';
+import { fetchRowsNewerThanWatermark, SqlServerCallRow } from './sqlserverAdapter';
 
 // ============================================================================
 // Types

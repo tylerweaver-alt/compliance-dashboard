@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "fetch:nws": "npx ts-node scripts/fetchNwsAlerts.ts"
+    "fetch:nws": "npx ts-node scripts/fetchNwsAlerts.ts",
+    "worker:ingestion": "npx ts-node -r tsconfig-paths/register --project tsconfig.worker.json worker/ingestion-worker.ts"
   },
   "dependencies": {
     "@sentry/nextjs": "^10.29.0",
@@ -32,6 +33,7 @@
     "@tailwindcss/postcss": "^4",
     "@types/geojson": "^7946.0.16",
     "@types/leaflet": "^1.9.21",
+    "@types/mssql": "^9.1.8",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
